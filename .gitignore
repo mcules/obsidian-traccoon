@@ -3,3 +3,6 @@ main.js
 *.js.map
 data.json
 vault.local
+
+# Handover prompts stay local — never in git.
+docs/HANDOVER-*.md
