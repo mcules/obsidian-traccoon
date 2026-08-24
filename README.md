@@ -53,6 +53,20 @@ Traccoon itself has no favicon yet. `docs/favicon.svg` is the same mark with fix
 and `docs/HANDOVER-favicon.md` is the instruction to put it into the web app — after that the
 browser tab and the vault sidebar show the same animal.
 
+## Mobile
+
+The plugin runs on the phone app — `isDesktopOnly` is false and nothing here touches a Node
+API. `requestUrl` is the transport precisely because it is the one that works there.
+
+What differs on a phone:
+
+- Enter writes a new line instead of sending; use the *Send* button.
+- The websocket lives only while a chat view is open, and drops when the app is suspended.
+  It rebuilds itself on return, and the message list refreshes over REST regardless, so a
+  missed stream costs the live tool log of that moment, never a result.
+- The server must be reachable over `https` — the socket address is derived from it, and a
+  mobile webview refuses a plaintext socket next to a secure page.
+
 ## Security
 
 The **token is stored in plain text** in `.obsidian/plugins/traccoon-assistant/data.json`,

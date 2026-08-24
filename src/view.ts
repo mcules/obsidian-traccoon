@@ -1,4 +1,4 @@
-import { ItemView, MarkdownRenderer, Notice, WorkspaceLeaf, setIcon } from "obsidian";
+import { ItemView, MarkdownRenderer, Notice, Platform, WorkspaceLeaf, setIcon } from "obsidian";
 import type TraccoonPlugin from "./main";
 import { RUNNING_STATES } from "./types";
 import type { ChatMsg, OfficeEvent } from "./types";
@@ -109,15 +109,21 @@ export class TraccoonChatView extends ItemView {
       cls: "traccoon-input",
       attr: {
         rows: "3",
-        placeholder: "Message to the assistant - Enter sends, Shift+Enter breaks the line",
+        placeholder: Platform.isMobile
+          ? "Message to the assistant"
+          : "Message to the assistant - Enter sends, Shift+Enter breaks the line",
       },
     });
-    this.inputEl.onkeydown = (e) => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        void this.send();
-      }
-    };
+    // On a phone Enter is how a paragraph is made, and there is no Shift to hold. Sending on
+    // Enter there would make a multi-line message impossible to type.
+    if (!Platform.isMobile) {
+      this.inputEl.onkeydown = (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          void this.send();
+        }
+      };
+    }
     const row = foot.createDiv({ cls: "traccoon-foot-row" });
     const send = row.createEl("button", { cls: "mod-cta", text: "Send" });
     send.onclick = () => void this.send();

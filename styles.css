@@ -199,3 +199,36 @@
 .traccoon-wide-input {
   width: 100%;
 }
+
+/* --- Phones and tablets ---------------------------------------------------
+   Obsidian sets `.is-mobile` on the body. Three things differ there: a finger
+   needs a bigger target than a mouse pointer, iOS zooms into any input whose
+   font is smaller than 16px, and the home indicator sits over the bottom edge. */
+
+.is-mobile .traccoon-icon-btn {
+  padding: 10px;
+}
+
+.is-mobile .traccoon-link-btn {
+  padding: 6px 0;
+}
+
+.is-mobile .traccoon-input {
+  font-size: 16px;
+}
+
+.is-mobile .traccoon-perm-row button,
+.is-mobile .traccoon-foot-row button {
+  min-height: 40px;
+  padding-left: 14px;
+  padding-right: 14px;
+}
+
+.is-mobile .traccoon-foot {
+  padding-bottom: calc(8px + env(safe-area-inset-bottom));
+}
+
+.is-mobile .traccoon-list {
+  /* Momentum scrolling, and room so the last bubble is not glued to the input. */
+  padding-bottom: 16px;
+}

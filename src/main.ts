@@ -45,7 +45,6 @@ export default class TraccoonPlugin extends Plugin {
       callback: () => this.newTicket(),
     });
 
-    this.app.workspace.onLayoutReady(() => this.reconnect());
   }
 
   onunload(): void {
@@ -57,10 +56,17 @@ export default class TraccoonPlugin extends Plugin {
 
   attachView(view: TraccoonChatView): void {
     this.views.add(view);
+    // The socket exists for the chat, so it lives exactly as long as a chat is open. On a
+    // phone an idle connection is battery spent on events nobody is looking at.
+    if (this.views.size === 1) this.reconnect();
   }
 
   detachView(view: TraccoonChatView): void {
     this.views.delete(view);
+    if (this.views.size === 0) {
+      this.socket?.close();
+      this.socket = null;
+    }
   }
 
   async openChat(): Promise<TraccoonChatView | null> {
@@ -79,7 +85,7 @@ export default class TraccoonPlugin extends Plugin {
   reconnect(): void {
     this.socket?.close();
     this.socket = null;
-    if (!this.settings.liveEvents || !this.api.configured) return;
+    if (!this.views.size || !this.settings.liveEvents || !this.api.configured) return;
     this.socket = new OfficeSocket(
       () => this.api.wsUrl(),
       (ev) => {
