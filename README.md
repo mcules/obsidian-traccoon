@@ -51,9 +51,9 @@ A bar above the message list switches between conversations: a dropdown of the o
 and *show the closed ones*. The last one you were in is remembered in `data.json`, so
 reopening the view lands where you left. `Start a new conversation` is also a command.
 
-This needs the session API in Traccoon (`docs/HANDOVER-sessions.md`). Against a backend
-without it, `GET /assistant/sessions` answers 404, the bar stays hidden and the chat behaves
-exactly as it did before — the two sides can be deployed in either order.
+The session API is live in Traccoon (`docs/HANDOVER-sessions.md`). The fallback stays in the
+code: against a backend without it, `GET /assistant/sessions` answers 404, the bar hides
+itself and the chat behaves as it did before sessions existed.
 
 ## The icon
 
