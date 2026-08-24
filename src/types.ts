@@ -9,8 +9,19 @@ export interface ChatMsg {
   pending_tool: string | null;
   created_at: string;
   finished_at?: string | null;
-  /** Only present when the backend carries the patch that exposes it (see README). */
   run_id?: number | null;
+  session_id?: number | null;
+}
+
+export interface Session {
+  id: number;
+  agent: string;
+  title: string;
+  created_at: string;
+  last_message_at: string | null;
+  closed_at: string | null;
+  message_count?: number;
+  running?: boolean;
 }
 
 export interface ChatPage {

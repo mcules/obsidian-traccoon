@@ -40,6 +40,15 @@ export default class TraccoonPlugin extends Plugin {
     });
 
     this.addCommand({
+      id: "new-session",
+      name: "Start a new conversation",
+      callback: async () => {
+        const view = await this.openChat();
+        await view?.startNewSession();
+      },
+    });
+
+    this.addCommand({
       id: "new-ticket",
       name: "Create ticket from this note",
       callback: () => this.newTicket(),

@@ -15,6 +15,8 @@ export interface TraccoonSettings {
   ticketProjectId: number | null;
   liveEvents: boolean;
   pollIntervalMs: number;
+  /** The session the chat was last in, so reopening the view lands where you left. */
+  lastSessionId: number | null;
 }
 
 export const DEFAULT_SETTINGS: TraccoonSettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: TraccoonSettings = {
   ticketProjectId: null,
   liveEvents: true,
   pollIntervalMs: 3000,
+  lastSessionId: null,
 };
 
 export class TraccoonSettingTab extends PluginSettingTab {

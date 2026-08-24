@@ -1,9 +1,10 @@
 import { ItemView, MarkdownRenderer, Notice, Platform, WorkspaceLeaf, setIcon } from "obsidian";
 import type TraccoonPlugin from "./main";
 import { RUNNING_STATES } from "./types";
-import type { ChatMsg, OfficeEvent } from "./types";
+import type { ChatMsg, OfficeEvent, Session } from "./types";
 import { editorContext, withContext } from "./context";
 import { TRACCOON_ICON } from "./icon";
+import { TextPromptModal } from "./prompt";
 
 export const VIEW_TYPE_TRACCOON = "traccoon-assistant-chat";
 
@@ -29,6 +30,12 @@ export class TraccoonChatView extends ItemView {
   private runToMsg = new Map<number, number>();
   private live = new Map<number, LiveLine[]>();
 
+  /** null while unknown, and stays null against a backend that has no sessions. */
+  private sessions: Session[] | null = null;
+  private sessionId: number | null = null;
+  private showClosedSessions = false;
+
+  private sessionBarEl!: HTMLElement;
   private listEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
@@ -56,6 +63,7 @@ export class TraccoonChatView extends ItemView {
     this.contentEl.addClass("traccoon-view");
     this.buildChrome();
     this.plugin.attachView(this);
+    await this.loadSessions();
     await this.reload(true);
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderContextChip()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.renderContextChip()));
@@ -96,6 +104,8 @@ export class TraccoonChatView extends ItemView {
         this.fail(e);
       }
     });
+
+    this.sessionBarEl = this.contentEl.createDiv({ cls: "traccoon-sessions" });
 
     this.listEl = this.contentEl.createDiv({ cls: "traccoon-list" });
     this.listEl.onscroll = () => {
@@ -164,7 +174,11 @@ export class TraccoonChatView extends ItemView {
       return;
     }
     try {
-      const page = await this.plugin.api.chat({ limit: PAGE, archive: this.archive });
+      const page = await this.plugin.api.chat({
+        limit: PAGE,
+        archive: this.archive,
+        sessionId: this.sessionId,
+      });
       this.messages = page.messages;
       this.more = page.more;
       this.bindRunIds();
@@ -185,6 +199,7 @@ export class TraccoonChatView extends ItemView {
         limit: PAGE,
         before: oldest,
         archive: this.archive,
+        sessionId: this.sessionId,
       });
       this.older = [...page.messages, ...this.older];
       this.more = page.more;
@@ -233,7 +248,13 @@ export class TraccoonChatView extends ItemView {
     this.busy = true;
     try {
       if (text === undefined) this.inputEl.value = "";
-      const msg = await this.plugin.api.send(body);
+      const msg = await this.plugin.api.send(body, this.sessionId);
+      // Sending without a session lets the server open one; adopt it, otherwise the next
+      // message would start yet another conversation.
+      if (!this.sessionId && msg.session_id) {
+        await this.setSession(msg.session_id, { reload: false });
+        void this.loadSessions();
+      }
       this.messages = [...this.messages, msg];
       this.stickToBottom = true;
       this.render(false);
@@ -251,6 +272,177 @@ export class TraccoonChatView extends ItemView {
       this.messages = this.messages.map((m) => (m.id === id ? updated : m));
       this.render(false);
       this.schedulePoll();
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  // -- sessions --------------------------------------------------------------
+
+  /**
+   * The list of conversations, and which one is open.
+   *
+   * A backend without sessions answers 404, `api.sessions()` turns that into null, and the
+   * bar disappears — the plugin then behaves exactly as it did before sessions existed.
+   */
+  async loadSessions(): Promise<void> {
+    if (!this.plugin.api.configured) return;
+    try {
+      const open = await this.plugin.api.sessions();
+      if (open === null) {
+        this.sessions = null;
+        this.renderSessionBar();
+        return;
+      }
+      const closed = this.showClosedSessions
+        ? ((await this.plugin.api.sessions({ closed: true })) ?? [])
+        : [];
+      this.sessions = [...open, ...closed];
+      this.pickSession();
+      this.renderSessionBar();
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  /** Which session the view lands in: the remembered one, else the one with the newest word. */
+  private pickSession(): void {
+    const list = this.sessions ?? [];
+    if (this.sessionId && list.some((s) => s.id === this.sessionId)) return;
+    const remembered = this.plugin.settings.lastSessionId;
+    if (remembered && list.some((s) => s.id === remembered)) {
+      this.sessionId = remembered;
+      return;
+    }
+    const openOnes = list.filter((s) => !s.closed_at);
+    const newest = [...openOnes].sort((a, b) => stamp(b) - stamp(a))[0];
+    this.sessionId = newest ? newest.id : null;
+  }
+
+  private async setSession(id: number | null, opts: { reload?: boolean } = {}): Promise<void> {
+    this.sessionId = id;
+    this.plugin.settings.lastSessionId = id;
+    await this.plugin.saveSettings();
+    // A run belongs to the conversation it ran in; carrying the mapping across would paste
+    // the tool log of one session under a message of another.
+    this.runToMsg.clear();
+    this.live.clear();
+    this.older = [];
+    this.stickToBottom = true;
+    this.renderSessionBar();
+    if (opts.reload !== false) await this.reload(true);
+  }
+
+  private renderSessionBar(): void {
+    if (!this.sessionBarEl) return;
+    this.sessionBarEl.empty();
+    if (this.sessions === null) {
+      this.sessionBarEl.addClass("traccoon-hidden");
+      return;
+    }
+    this.sessionBarEl.removeClass("traccoon-hidden");
+
+    const select = this.sessionBarEl.createEl("select", { cls: "dropdown traccoon-session-select" });
+    if (!this.sessions.length) {
+      select.createEl("option", { text: "no conversation yet", value: "" });
+    }
+    for (const s of [...this.sessions].sort((a, b) => stamp(b) - stamp(a))) {
+      const mark = s.running ? "● " : s.closed_at ? "✓ " : "";
+      const count = s.message_count ? ` (${s.message_count})` : "";
+      select.createEl("option", {
+        text: `${mark}${s.title || `#${s.id}`}${count}`,
+        value: String(s.id),
+      });
+    }
+    select.value = this.sessionId ? String(this.sessionId) : "";
+    select.onchange = () => void this.setSession(select.value ? Number(select.value) : null);
+
+    const btn = (icon: string, label: string, fn: () => void) => {
+      const b = this.sessionBarEl.createEl("button", {
+        cls: "traccoon-icon-btn",
+        attr: { "aria-label": label },
+      });
+      setIcon(b, icon);
+      b.onclick = fn;
+    };
+
+    btn("plus", "New conversation", () => this.newSession());
+    btn("pencil", "Rename this conversation", () => this.renameSession());
+    const current = this.sessions.find((s) => s.id === this.sessionId);
+    if (current?.closed_at) {
+      btn("rotate-ccw", "Reopen this conversation", () => void this.toggleClose(false));
+    } else if (current) {
+      btn("x", "Close this conversation", () => void this.toggleClose(true));
+    }
+    const eye = this.showClosedSessions ? "eye-off" : "eye";
+    btn(eye, this.showClosedSessions ? "Hide closed ones" : "Show closed ones", () => {
+      this.showClosedSessions = !this.showClosedSessions;
+      void this.loadSessions();
+    });
+  }
+
+  /** The command in the palette; the button in the bar goes through the same door. */
+  startNewSession(): void {
+    if (this.sessions === null) {
+      new Notice("Traccoon: this server has no conversations yet");
+      return;
+    }
+    this.newSession();
+  }
+
+  private newSession(): void {
+    new TextPromptModal(
+      this.app,
+      {
+        title: "New conversation",
+        placeholder: "Title (empty: taken from the first message)",
+        cta: "Create",
+      },
+      async (title) => void (await this.createSession(title)),
+    ).open();
+  }
+
+  /** The modal only calls back with a non-empty value, so the empty case runs its own path. */
+  private async createSession(title?: string): Promise<void> {
+    try {
+      const s = await this.plugin.api.createSession(title ? { title } : {});
+      this.sessions = [...(this.sessions ?? []), s];
+      await this.setSession(s.id);
+      this.inputEl.focus();
+    } catch (e) {
+      this.fail(e);
+    }
+  }
+
+  private renameSession(): void {
+    const current = this.sessions?.find((s) => s.id === this.sessionId);
+    if (!current) return;
+    new TextPromptModal(
+      this.app,
+      { title: "Rename", value: current.title, cta: "Save" },
+      async (title) => {
+        try {
+          await this.plugin.api.renameSession(current.id, title);
+          await this.loadSessions();
+        } catch (e) {
+          this.fail(e);
+        }
+      },
+    ).open();
+  }
+
+  private async toggleClose(close: boolean): Promise<void> {
+    if (!this.sessionId) return;
+    try {
+      await this.plugin.api.closeSession(this.sessionId, close);
+      if (close) {
+        // Closing means stepping out of it: land in the next open one, or in none.
+        this.sessionId = null;
+        await this.loadSessions();
+        await this.setSession(this.sessionId);
+      } else {
+        await this.loadSessions();
+      }
     } catch (e) {
       this.fail(e);
     }
@@ -281,7 +473,11 @@ export class TraccoonChatView extends ItemView {
     if (lines.length > LIVE_LINES_PER_MSG) lines.splice(0, lines.length - LIVE_LINES_PER_MSG);
     this.live.set(msgId, lines);
     this.appendLive(msgId, line);
-    if (ev.kind === "run_end") void this.reload(false);
+    if (ev.kind === "run_end") {
+      void this.reload(false);
+      // The list carries the running marker and the moment of the last word; both just changed.
+      void this.loadSessions();
+    }
   }
 
   private lineOf(ev: OfficeEvent): LiveLine | null {
@@ -401,4 +597,11 @@ export class TraccoonChatView extends ItemView {
       }
     }
   }
+}
+
+/** The moment a conversation was last spoken in, for ordering. */
+function stamp(s: Session): number {
+  const when = s.last_message_at || s.created_at;
+  const t = Date.parse(when);
+  return Number.isNaN(t) ? 0 : t;
 }

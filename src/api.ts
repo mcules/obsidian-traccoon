@@ -1,5 +1,5 @@
 import { requestUrl, RequestUrlResponse } from "obsidian";
-import type { ChatMsg, ChatPage, Issue, Project } from "./types";
+import type { ChatMsg, ChatPage, Issue, Project, Session } from "./types";
 import type { TraccoonSettings } from "./settings";
 
 export class TraccoonError extends Error {
@@ -88,15 +88,50 @@ export class TraccoonApi {
     return this.request("/auth/me");
   }
 
-  chat(opts: { limit?: number; before?: number; archive?: boolean } = {}): Promise<ChatPage> {
+  chat(
+    opts: { limit?: number; before?: number; archive?: boolean; sessionId?: number | null } = {},
+  ): Promise<ChatPage> {
     const q = new URLSearchParams({ limit: String(opts.limit ?? 20) });
     if (opts.before) q.set("before", String(opts.before));
     if (opts.archive) q.set("archive", "1");
+    if (opts.sessionId) q.set("session_id", String(opts.sessionId));
     return this.request(`/assistant/chat?${q.toString()}`);
   }
 
-  send(text: string): Promise<ChatMsg> {
-    return this.request("/assistant/chat", "POST", { text });
+  send(text: string, sessionId?: number | null): Promise<ChatMsg> {
+    const body: { text: string; session_id?: number } = { text };
+    if (sessionId) body.session_id = sessionId;
+    return this.request("/assistant/chat", "POST", body);
+  }
+
+  // -- sessions --------------------------------------------------------------
+  //
+  // A backend without sessions answers 404 here. `sessions()` turns that into null so the
+  // view can hide its switcher instead of showing an error for a feature that simply is not
+  // there yet — the two sides can then be deployed in either order.
+
+  async sessions(opts: { closed?: boolean; agent?: string } = {}): Promise<Session[] | null> {
+    const q = new URLSearchParams();
+    if (opts.closed) q.set("closed", "1");
+    if (opts.agent) q.set("agent", opts.agent);
+    try {
+      return await this.request<Session[]>(`/assistant/sessions?${q.toString()}`);
+    } catch (e) {
+      if (e instanceof TraccoonError && e.status === 404) return null;
+      throw e;
+    }
+  }
+
+  createSession(data: { title?: string; agent?: string } = {}): Promise<Session> {
+    return this.request("/assistant/sessions", "POST", data);
+  }
+
+  renameSession(id: number, title: string): Promise<Session> {
+    return this.request(`/assistant/sessions/${id}`, "PATCH", { title });
+  }
+
+  closeSession(id: number, closed: boolean): Promise<Session> {
+    return this.request(`/assistant/sessions/${id}/${closed ? "close" : "reopen"}`, "POST");
   }
 
   decide(id: number, decision: "once" | "always" | "never"): Promise<ChatMsg> {

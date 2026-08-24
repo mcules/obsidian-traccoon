@@ -44,6 +44,17 @@ own, a password can only be changed, and changing it invalidates every session e
 `npm run dev` keeps esbuild watching; run `npm run deploy` again to push a build into the
 vault.
 
+## Conversations
+
+A bar above the message list switches between conversations: a dropdown of the open ones
+(`●` while a run is going, message count in brackets), plus buttons for new, rename, close
+and *show the closed ones*. The last one you were in is remembered in `data.json`, so
+reopening the view lands where you left. `Start a new conversation` is also a command.
+
+This needs the session API in Traccoon (`docs/HANDOVER-sessions.md`). Against a backend
+without it, `GET /assistant/sessions` answers 404, the bar stays hidden and the chat behaves
+exactly as it did before — the two sides can be deployed in either order.
+
 ## The icon
 
 Ribbon, tab and view use a raccoon mask drawn as line art (`src/icon.ts`), registered through
