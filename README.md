@@ -77,25 +77,12 @@ consequences worth acting on:
 - when a device is lost, revoke that token in Traccoon. Nothing else changes, and no other
   client has to be touched.
 
-## Optional backend patch: exact run binding
+## How the run of a message is followed
 
-The chat payload does not carry the run id, although `AssistantTask.run_id` exists. Without
-it the plugin binds an incoming event stream to the newest running message, which is right
-whenever one message runs at a time and can mis-attribute when two run in parallel.
-
-One line in `backend/app/api/mail.py::_chat_out` removes the guess:
-
-```python
- return {
-     "id": t.id, "text": (t.meta or {}).get("chat_text") or t.title,
-     "status": t.status, "result": t.result, "error": t.error,
-+    "run_id": t.run_id,
-     "pending_tool": t.pending_tool, "created_at": t.created_at, "finished_at": t.finished_at,
- }
-```
-
-The plugin reads `run_id` when it is there and falls back to the heuristic when it is not, so
-the patch is not required to run.
+`GET /assistant/chat` returns `run_id` per message, so the live events of the office socket
+are attributed to the message they belong to. When a payload arrives without that field
+— an older backend — the plugin falls back to binding a fresh run to the newest running
+message, which is right as long as only one message runs at a time.
 
 ## Notes on the API this speaks
 
