@@ -40,7 +40,8 @@
 .traccoon-list {
   flex: 1;
   overflow-y: auto;
-  padding: 10px;
+  padding: 8px 10px;
+  line-height: 1.4;
 }
 
 .traccoon-more {
@@ -49,13 +50,37 @@
 }
 
 .traccoon-msg {
-  margin-bottom: 16px;
+  margin-bottom: 10px;
 }
 
 .traccoon-bubble {
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 5px 9px;
   font-size: var(--font-ui-small);
+}
+
+/* Obsidian gives every rendered block roughly one line of air above and below. In a column
+   of short answers that air is most of the column, so it goes — except between blocks, where
+   it is what keeps a list from touching the paragraph before it. */
+.traccoon-bubble :is(p, ul, ol, blockquote, pre, table) {
+  margin-block: 0.35em;
+}
+.traccoon-bubble > :first-child {
+  margin-top: 0;
+}
+.traccoon-bubble > :last-child {
+  margin-bottom: 0;
+}
+.traccoon-bubble :is(h1, h2, h3, h4, h5, h6) {
+  margin-block: 0.5em 0.25em;
+  line-height: 1.3;
+}
+.traccoon-bubble li {
+  margin-block: 0.1em;
+}
+.traccoon-bubble ul,
+.traccoon-bubble ol {
+  padding-inline-start: 1.3em;
 }
 
 .traccoon-mine {
@@ -65,27 +90,34 @@
 
 .traccoon-theirs {
   background: var(--background-secondary);
-  margin-top: 6px;
+  margin-top: 3px;
 }
 
 .traccoon-error {
   background: var(--background-modifier-error);
-  margin-top: 6px;
+  margin-top: 3px;
   white-space: pre-wrap;
 }
 
 .traccoon-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 4px;
+  gap: 6px;
+  margin-top: 2px;
   font-size: var(--font-ui-smaller);
+  line-height: 1.2;
   color: var(--text-faint);
+}
+
+/* The row of state, time and archive is bookkeeping. It stays readable on demand and stops
+   competing with the conversation for attention. */
+.traccoon-msg:not(:hover) .traccoon-meta {
+  opacity: 0.55;
 }
 
 .traccoon-badge {
   border-radius: 4px;
-  padding: 1px 6px;
+  padding: 0 5px;
   background: var(--background-modifier-border);
   color: var(--text-muted);
 }
@@ -122,7 +154,7 @@
 }
 
 .traccoon-perm {
-  margin-top: 6px;
+  margin-top: 4px;
   border: 1px solid var(--color-yellow);
   border-radius: 8px;
   padding: 8px 10px;
@@ -137,7 +169,7 @@
 }
 
 .traccoon-live {
-  margin-top: 6px;
+  margin-top: 4px;
   border-left: 2px solid var(--background-modifier-border);
   padding-left: 8px;
   font-family: var(--font-monospace);
