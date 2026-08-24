@@ -87,9 +87,20 @@
   padding-inline-start: 1.3em;
 }
 
+/* My own messages sit on the right and only take the width they need — that is what makes a
+   column of text read as a conversation rather than as a log. The text inside stays
+   left-aligned; right-aligned prose is hard work to read. */
 .traccoon-mine {
   background: var(--background-modifier-hover);
   white-space: pre-wrap;
+  width: fit-content;
+  max-width: 85%;
+  margin-left: auto;
+}
+
+/* The state line belongs to the message above it, so it follows it to the right. */
+.traccoon-meta {
+  justify-content: flex-end;
 }
 
 .traccoon-theirs {
