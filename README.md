@@ -24,10 +24,21 @@ Obsidian MCP server — so a message names a note by path instead of pasting it.
 
 ## Install
 
+### From a release (any device, phone included)
+
+Install [BRAT](https://github.com/TfTHacker/obsidian42-brat), then *Add beta plugin* with
+`mcules/obsidian-traccoon`. BRAT pulls the release and keeps it updated. On a phone this is
+the whole installation — there is nothing to build there.
+
+Manual alternative: download `main.js`, `manifest.json` and `styles.css` from the latest
+release into `<vault>/.obsidian/plugins/traccoon-assistant/`.
+
+### From source
+
 ```
 npm install
 npm run build
-npm run deploy         # copies into the vault, override with TRACCOON_VAULT=...
+npm run deploy         # needs TRACCOON_VAULT=… or a vault.local file with the path
 ```
 
 Then enable *Traccoon Assistant* under Settings → Community plugins, set the server URL
