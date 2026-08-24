@@ -795,10 +795,9 @@ function short(n: number): string {
 
 /** The first line of what was typed, short enough to read in a dropdown. */
 function titleFrom(text: string): string {
-  const line = text.split("
-")[0].trim();
+  const line = (text.split(String.fromCharCode(10))[0] || "").trim();
   if (line.length <= 60) return line;
   const cut = line.slice(0, 60);
   const space = cut.lastIndexOf(" ");
-  return `${space > 30 ? cut.slice(0, space) : cut}…`;
+  return (space > 30 ? cut.slice(0, space) : cut) + "…";
 }
