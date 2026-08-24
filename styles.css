@@ -1,0 +1,201 @@
+.traccoon-view {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  padding: 0;
+}
+
+.traccoon-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.traccoon-title {
+  font-weight: 600;
+}
+
+.traccoon-status {
+  flex: 1;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.traccoon-icon-btn {
+  background: none;
+  box-shadow: none;
+  padding: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.traccoon-icon-btn:hover {
+  color: var(--text-normal);
+}
+
+.traccoon-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px;
+}
+
+.traccoon-more {
+  display: block;
+  margin: 0 auto 10px;
+}
+
+.traccoon-msg {
+  margin-bottom: 16px;
+}
+
+.traccoon-bubble {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: var(--font-ui-small);
+}
+
+.traccoon-mine {
+  background: var(--background-modifier-hover);
+  white-space: pre-wrap;
+}
+
+.traccoon-theirs {
+  background: var(--background-secondary);
+  margin-top: 6px;
+}
+
+.traccoon-error {
+  background: var(--background-modifier-error);
+  margin-top: 6px;
+  white-space: pre-wrap;
+}
+
+.traccoon-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 4px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+}
+
+.traccoon-badge {
+  border-radius: 4px;
+  padding: 1px 6px;
+  background: var(--background-modifier-border);
+  color: var(--text-muted);
+}
+.traccoon-badge.traccoon-running,
+.traccoon-badge.traccoon-approved,
+.traccoon-badge.traccoon-new {
+  background: var(--color-blue);
+  color: var(--text-on-accent);
+}
+.traccoon-badge.traccoon-awaiting {
+  background: var(--color-yellow);
+  color: var(--text-on-accent);
+}
+.traccoon-badge.traccoon-error {
+  background: var(--color-red);
+  color: var(--text-on-accent);
+}
+.traccoon-badge.traccoon-done {
+  background: var(--color-green);
+  color: var(--text-on-accent);
+}
+
+.traccoon-link-btn {
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: var(--font-ui-smaller);
+}
+.traccoon-link-btn:hover {
+  color: var(--text-normal);
+  text-decoration: underline;
+}
+
+.traccoon-perm {
+  margin-top: 6px;
+  border: 1px solid var(--color-yellow);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.traccoon-perm-head {
+  font-size: var(--font-ui-small);
+  margin-bottom: 6px;
+}
+.traccoon-perm-row {
+  display: flex;
+  gap: 6px;
+}
+
+.traccoon-live {
+  margin-top: 6px;
+  border-left: 2px solid var(--background-modifier-border);
+  padding-left: 8px;
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  color: var(--text-muted);
+}
+.traccoon-live-line {
+  white-space: pre-wrap;
+  padding: 1px 0;
+}
+.traccoon-kind-agent_text {
+  color: var(--text-normal);
+  font-family: var(--font-interface);
+}
+.traccoon-kind-tool_result {
+  color: var(--text-faint);
+}
+.traccoon-kind-run_end {
+  color: var(--text-faint);
+}
+
+.traccoon-foot {
+  border-top: 1px solid var(--background-modifier-border);
+  padding: 8px 10px;
+}
+
+.traccoon-context {
+  min-height: 18px;
+  margin-bottom: 4px;
+}
+
+.traccoon-chip {
+  display: inline-block;
+  border-radius: 10px;
+  padding: 1px 8px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+}
+
+.traccoon-input {
+  width: 100%;
+  resize: vertical;
+}
+
+.traccoon-foot-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 6px;
+}
+
+.traccoon-warn {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  border-left: 3px solid var(--color-orange);
+  padding-left: 8px;
+}
+
+.traccoon-wide-input {
+  width: 100%;
+}
