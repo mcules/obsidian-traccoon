@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100" role="img" aria-label="Traccoon">
+  <!--
+    The Traccoon mark: a raccoon mask in line art.
+
+    Same geometry as the Obsidian plugin icon (src/icon.ts). The colours are fixed here
+    because a favicon hangs in a browser tab and has no surrounding text colour to inherit;
+    the dark rounded plate keeps the strokes readable on a light and on a dark tab bar alike.
+  -->
+  <rect width="100" height="100" rx="22" fill="#241f1b"/>
+  <g fill="none" stroke="#e7ded0" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M24 32 L31 13 L46 25"/>
+    <path d="M76 32 L69 13 L54 25"/>
+    <path d="M50 21 C73 21 85 38 85 55 C85 74 69 88 50 88 C31 88 15 74 15 55 C15 38 27 21 50 21 Z"/>
+    <path d="M23 47 C29 40 38 40 43 47"/>
+    <path d="M77 47 C71 40 62 40 57 47"/>
+    <path d="M50 71 L50 78"/>
+  </g>
+  <circle cx="35" cy="56" r="5" fill="#e7ded0"/>
+  <circle cx="65" cy="56" r="5" fill="#e7ded0"/>
+  <path d="M50 71 L43 64 L57 64 Z" fill="#e7ded0"/>
+</svg>

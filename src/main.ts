@@ -5,6 +5,7 @@ import { OfficeSocket } from "./ws";
 import { TraccoonChatView, VIEW_TYPE_TRACCOON } from "./view";
 import { NewTicketModal } from "./ticket";
 import { editorContext } from "./context";
+import { registerIcon, TRACCOON_ICON } from "./icon";
 
 export default class TraccoonPlugin extends Plugin {
   settings!: TraccoonSettings;
@@ -13,12 +14,13 @@ export default class TraccoonPlugin extends Plugin {
   private views = new Set<TraccoonChatView>();
 
   async onload(): Promise<void> {
+    registerIcon();
     await this.loadSettings();
     this.api = new TraccoonApi(this.settings, () => this.saveSettings());
 
     this.registerView(VIEW_TYPE_TRACCOON, (leaf) => new TraccoonChatView(leaf, this));
     this.addSettingTab(new TraccoonSettingTab(this.app, this));
-    this.addRibbonIcon("bot", "Traccoon Assistant", () => void this.openChat());
+    this.addRibbonIcon(TRACCOON_ICON, "Traccoon Assistant", () => void this.openChat());
 
     this.addCommand({
       id: "open-chat",

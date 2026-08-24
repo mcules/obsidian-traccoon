@@ -3,6 +3,7 @@ import type TraccoonPlugin from "./main";
 import { RUNNING_STATES } from "./types";
 import type { ChatMsg, OfficeEvent } from "./types";
 import { editorContext, withContext } from "./context";
+import { TRACCOON_ICON } from "./icon";
 
 export const VIEW_TYPE_TRACCOON = "traccoon-assistant-chat";
 
@@ -47,7 +48,7 @@ export class TraccoonChatView extends ItemView {
     return "Traccoon Assistant";
   }
   getIcon(): string {
-    return "bot";
+    return TRACCOON_ICON;
   }
 
   async onOpen(): Promise<void> {
@@ -152,7 +153,7 @@ export class TraccoonChatView extends ItemView {
       this.setStatus("not configured");
       this.listEl.empty();
       this.listEl.createEl("p", {
-        text: "Set the server and log in under Settings -> Traccoon Assistant.",
+        text: "Set the server and paste an access token under Settings -> Traccoon Assistant.",
       });
       return;
     }

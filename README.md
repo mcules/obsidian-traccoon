@@ -44,6 +44,15 @@ own, a password can only be changed, and changing it invalidates every session e
 `npm run dev` keeps esbuild watching; run `npm run deploy` again to push a build into the
 vault.
 
+## The icon
+
+Ribbon, tab and view use a raccoon mask drawn as line art (`src/icon.ts`), registered through
+`addIcon` and painted in `currentColor` so it follows the theme like every built-in icon.
+
+Traccoon itself has no favicon yet. `docs/favicon.svg` is the same mark with fixed colours,
+and `docs/HANDOVER-favicon.md` is the instruction to put it into the web app — after that the
+browser tab and the vault sidebar show the same animal.
+
 ## Security
 
 The **token is stored in plain text** in `.obsidian/plugins/traccoon-assistant/data.json`,
