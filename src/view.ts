@@ -403,6 +403,8 @@ export class TraccoonChatView extends ItemView {
     select.value = this.sessionId ? String(this.sessionId) : "";
     select.onchange = () => void this.setSession(select.value ? Number(select.value) : null);
 
+    this.renderContextLabel();
+
     const plus = this.sessionBarEl.createEl("button", {
       cls: "traccoon-icon-btn",
       attr: { "aria-label": "New conversation" },
@@ -426,30 +428,68 @@ export class TraccoonChatView extends ItemView {
     if (!this.contextBarEl) return;
     this.contextBarEl.empty();
 
-    const ctx = this.sessions?.find((s) => s.id === this.sessionId)?.context;
-    if (!ctx || ctx.pct === null || ctx.pct === undefined) {
+    const pct = this.contextPct();
+    if (pct === null) {
       this.contextBarEl.addClass("traccoon-hidden");
       return;
     }
     this.contextBarEl.removeClass("traccoon-hidden");
-
-    const pct = Math.max(0, Math.min(100, ctx.pct));
     const level = pct >= 90 ? "high" : pct >= 75 ? "warn" : "calm";
     const fill = this.contextBarEl.createDiv({ cls: `traccoon-ctx-fill traccoon-ctx-${level}` });
-    fill.style.width = `${pct}%`;
+    fill.style.width = `${Math.max(2, pct)}%`;
 
-    const parts = [
-      `context ${short(ctx.input_tokens)} of ${short(ctx.context_tokens ?? 0)} (${pct}%)`,
-      ctx.model ? `model ${ctx.model}` : "",
-      ctx.verbatim_exchanges !== undefined
-        ? `${ctx.verbatim_exchanges} exchanges verbatim, older ones summarised`
-        : "",
-    ].filter(Boolean);
-    this.contextBarEl.setAttr("title", parts.join(" · "));
+    if (pct >= 75) this.setStatus(`context ${pct}% — a new conversation would start light`);
+  }
 
-    if (pct >= 75) {
-      this.setStatus(`context ${pct}% — a new conversation would start light`);
+  private currentSession(): Session | undefined {
+    return this.sessions?.find((s) => s.id === this.sessionId);
+  }
+
+  private contextPct(): number | null {
+    const c = this.currentSession()?.context;
+    if (!c || c.pct === null || c.pct === undefined) return null;
+    return Math.max(0, Math.min(100, c.pct));
+  }
+
+  /** The number in words, next to the picker — a three pixel bar is too quiet to be an answer. */
+  private renderContextLabel(): void {
+    const c = this.currentSession()?.context;
+    const pct = this.contextPct();
+    if (!c && !pct) return;
+
+    const label = this.sessionBarEl.createEl("button", {
+      cls: "traccoon-ctx-label",
+      text: pct === null ? "ctx ?" : `${pct}%`,
+    });
+    label.setAttr("title", this.contextText());
+    label.onclick = () => new Notice(this.contextText(), 8000);
+  }
+
+  /**
+   * What the numbers mean, including the two cases where there are none.
+   *
+   * Saying "unknown" and why beats drawing nothing: the usual reason is a model without a
+   * window in `provider_models`, and that is a five second fix once somebody knows it.
+   */
+  private contextText(): string {
+    const session = this.currentSession();
+    if (!session) return "No conversation selected.";
+    const c = session.context;
+    if (!c) {
+      return "No run in this conversation yet — the context is measured on the last completed run.";
     }
+    const head =
+      c.context_tokens && c.pct !== null
+        ? `Context ${short(c.input_tokens)} of ${short(c.context_tokens)} (${c.pct}%)`
+        : `Context ${short(c.input_tokens)} — window unknown for "${c.model}". ` +
+          "Set it in Traccoon under Administration → Models (context_tokens).";
+    const tail: string[] = [];
+    if (c.model) tail.push(`model ${c.model}`);
+    if (c.verbatim_exchanges !== undefined) {
+      tail.push(`${c.verbatim_exchanges} exchanges verbatim, older ones summarised`);
+    }
+    if (c.summary_chars) tail.push(`summary ${short(c.summary_chars)} chars`);
+    return [head, ...tail].join(" · ");
   }
 
   /** Everything that is not switching or starting: rename, close, archive, refresh. */
@@ -517,6 +557,12 @@ export class TraccoonChatView extends ItemView {
         );
       }
       menu.addSeparator();
+      menu.addItem((i) =>
+        i
+          .setTitle("Context of this conversation")
+          .setIcon("gauge")
+          .onClick(() => new Notice(this.contextText(), 8000)),
+      );
       menu.addItem((i) =>
         i.setTitle("Refresh").setIcon("refresh-cw").onClick(() => void this.reload(false)),
       );

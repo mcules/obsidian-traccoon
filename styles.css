@@ -368,3 +368,17 @@ button.traccoon-chip-off {
 .traccoon-ctx-high {
   background: var(--color-red);
 }
+
+.traccoon-ctx-label {
+  background: none;
+  box-shadow: none;
+  padding: 0 4px;
+  height: auto;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-faint);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.traccoon-ctx-label:hover {
+  color: var(--text-normal);
+}
