@@ -113,18 +113,9 @@
   color: var(--text-faint);
 }
 
-/* Bookkeeping: hidden until asked for. `visibility` rather than `display`, so the row keeps
-   its height and the conversation does not jump under the pointer. Anything the human has to
-   react to carries `traccoon-meta-loud` and ignores this. */
-.traccoon-msg:not(:hover) .traccoon-meta:not(.traccoon-meta-loud) {
-  visibility: hidden;
-  height: 0;
-  margin: 0;
-}
-
-.traccoon-meta-loud {
-  opacity: 0.85;
-}
+/* Nothing here reacts to the pointer. A row that appears on hover makes the list twitch and
+   cannot be reached on a phone at all — so a message either carries its state line always, or
+   never. */
 
 .traccoon-badge {
   border-radius: 4px;
@@ -340,10 +331,4 @@ button.traccoon-chip-off {
 .is-mobile .traccoon-chip-x .svg-icon {
   width: 16px;
   height: 16px;
-}
-
-.is-mobile .traccoon-msg .traccoon-meta {
-  visibility: visible;
-  height: auto;
-  opacity: 0.5;
 }

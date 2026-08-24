@@ -626,35 +626,63 @@ export class TraccoonChatView extends ItemView {
     }
   }
 
+  /** Per message: when it was, archiving, and the text itself. */
+  private messageMenu(evt: MouseEvent, m: ChatMsg, when: string): void {
+    evt.preventDefault();
+    const menu = new Menu();
+    menu.addItem((i) => i.setTitle(when).setIcon("clock").setDisabled(true));
+    menu.addSeparator();
+
+    if (!RUNNING_STATES.includes(m.status)) {
+      menu.addItem((i) =>
+        i
+          .setTitle(this.archive ? "Unarchive" : "Archive")
+          .setIcon("archive")
+          .onClick(async () => {
+            try {
+              await this.plugin.api.archive(m.id, this.archive);
+              this.older = this.older.filter((x) => x.id !== m.id);
+              await this.reload(false);
+            } catch (e) {
+              this.fail(e);
+            }
+          }),
+      );
+    }
+    if (m.result) {
+      menu.addItem((i) =>
+        i
+          .setTitle("Copy answer")
+          .setIcon("copy")
+          .onClick(() => void navigator.clipboard.writeText(m.result)),
+      );
+    }
+    menu.addItem((i) =>
+      i
+        .setTitle("Copy my message")
+        .setIcon("copy")
+        .onClick(() => void navigator.clipboard.writeText(m.text)),
+    );
+    menu.showAtMouseEvent(evt);
+  }
+
   private renderMessage(m: ChatMsg): void {
     const wrap = this.listEl.createDiv({ cls: "traccoon-msg" });
 
     const mine = wrap.createDiv({ cls: "traccoon-bubble traccoon-mine" });
     mine.createDiv({ cls: "traccoon-text", text: m.text });
 
-    // A finished message says "done" on every single row, which is the least interesting word
-    // in the conversation. The line stays in the DOM for the hover, but only a state worth
-    // reacting to — running, waiting, failed — shows itself unasked.
-    const noteworthy = m.status !== "done" || Boolean(m.error);
-    const meta = wrap.createDiv({
-      cls: `traccoon-meta${noteworthy ? " traccoon-meta-loud" : ""}`,
-    });
-    if (noteworthy) meta.createSpan({ cls: `traccoon-badge traccoon-${m.status}`, text: m.status });
-    meta.createSpan({ text: new Date(m.created_at).toLocaleString() });
-    if (!RUNNING_STATES.includes(m.status)) {
-      const a = meta.createEl("button", {
-        cls: "traccoon-link-btn",
-        text: this.archive ? "unarchive" : "archive",
-      });
-      a.onclick = async () => {
-        try {
-          await this.plugin.api.archive(m.id, this.archive);
-          this.older = this.older.filter((x) => x.id !== m.id);
-          await this.reload(false);
-        } catch (e) {
-          this.fail(e);
-        }
-      };
+    // A finished message needs no row of its own: "done" plus a timestamp under every entry
+    // is the least interesting text on screen. Only a state to react to — running, waiting,
+    // failed — gets a line, and it is there from the start rather than appearing under the
+    // pointer. Time and archiving live in the context menu (right click, long press).
+    const when = new Date(m.created_at).toLocaleString();
+    wrap.setAttr("title", when);
+    wrap.oncontextmenu = (evt) => this.messageMenu(evt, m, when);
+
+    if (m.status !== "done") {
+      const meta = wrap.createDiv({ cls: "traccoon-meta" });
+      meta.createSpan({ cls: `traccoon-badge traccoon-${m.status}`, text: m.status });
     }
 
     if (m.status === "awaiting" && m.pending_tool) {
