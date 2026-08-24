@@ -1,6 +1,6 @@
 {
   "name": "obsidian-traccoon",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Traccoon Assistant inside Obsidian",
   "main": "main.js",
   "scripts": {

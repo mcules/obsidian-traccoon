@@ -1,7 +1,7 @@
 {
   "id": "traccoon-assistant",
   "name": "Traccoon Assistant",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "minAppVersion": "1.5.0",
   "description": "Chat with your Traccoon assistant, approve its tool use, and turn notes into Traccoon tickets.",
   "author": "Dennis Eisold",

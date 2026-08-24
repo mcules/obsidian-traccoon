@@ -277,9 +277,24 @@ export class TraccoonChatView extends ItemView {
     this.busy = true;
     try {
       if (text === undefined) this.inputEl.value = "";
+
+      // Open the conversation here rather than letting the send do it implicitly. The server
+      // names an unnamed session after the first 60 characters of the message — which would
+      // be "test — Obsidian: [[05 Daily Notes/…]]", the attached note path and all. What
+      // belongs in the title is what the human typed, first line only.
+      if (!this.sessionId && this.sessions !== null) {
+        try {
+          const fresh = await this.plugin.api.createSession({ title: titleFrom(raw) });
+          this.sessions = [...(this.sessions ?? []), fresh];
+          await this.setSession(fresh.id, { reload: false });
+        } catch (e) {
+          // A conversation that cannot be opened must not swallow the message: the send below
+          // falls back to the server's own session handling.
+          this.fail(e);
+        }
+      }
+
       const msg = await this.plugin.api.send(body, this.sessionId);
-      // Sending without a session lets the server open one; adopt it, otherwise the next
-      // message would start yet another conversation.
       if (!this.sessionId && msg.session_id) {
         await this.setSession(msg.session_id, { reload: false });
         void this.loadSessions();
@@ -776,4 +791,14 @@ function short(n: number): string {
   if (n < 1000) return String(n);
   const k = n / 1000;
   return `${k < 10 ? k.toFixed(1) : Math.round(k)}k`;
+}
+
+/** The first line of what was typed, short enough to read in a dropdown. */
+function titleFrom(text: string): string {
+  const line = text.split("
+")[0].trim();
+  if (line.length <= 60) return line;
+  const cut = line.slice(0, 60);
+  const space = cut.lastIndexOf(" ");
+  return `${space > 30 ? cut.slice(0, space) : cut}…`;
 }
