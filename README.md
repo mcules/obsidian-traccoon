@@ -20,6 +20,9 @@ Obsidian MCP server — so a message names a note by path instead of pasting it.
 - **Context** — the active note path, and the selection if you made one, travel with the
   message. The chip above the input has an `x` that drops it; it stays dropped until you click
   the chip again, also across a change of note. Settings turn it down to path-only or off.
+- **Context** — a thin bar under the header shows how full the window was on the last run of
+  this conversation, with the numbers in its tooltip. Needs the `context` field on the session
+  payload (`docs/HANDOVER-context-fill.md`); without it the bar stays hidden.
 - **Tickets** — `Create ticket from this note` opens a small form (project, summary,
   priority, description) and writes the resulting key back into the note as a link.
 

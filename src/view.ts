@@ -46,6 +46,7 @@ export class TraccoonChatView extends ItemView {
   private contextOff = false;
 
   private sessionBarEl!: HTMLElement;
+  private contextBarEl!: HTMLElement;
   private listEl!: HTMLElement;
   private statusEl!: HTMLElement;
   private inputEl!: HTMLTextAreaElement;
@@ -97,6 +98,7 @@ export class TraccoonChatView extends ItemView {
   private buildChrome(): void {
     const head = this.contentEl.createDiv({ cls: "traccoon-head" });
     this.sessionBarEl = head.createDiv({ cls: "traccoon-sessions" });
+    this.contextBarEl = this.contentEl.createDiv({ cls: "traccoon-ctx" });
     this.statusEl = this.contentEl.createDiv({ cls: "traccoon-status" });
 
     this.listEl = this.contentEl.createDiv({ cls: "traccoon-list" });
@@ -394,6 +396,45 @@ export class TraccoonChatView extends ItemView {
     plus.onclick = () => this.newSession();
 
     this.moreButton(this.sessionBarEl);
+    this.renderContextBar();
+  }
+
+  /**
+   * How full the window was on the last run of this conversation.
+   *
+   * The bar is deliberately mute: this context is compacted, so it plateaus instead of
+   * filling up, and a number that never reaches the end is not worth a colour. Only when it
+   * genuinely gets close does it speak up — and only then in words, because that is the
+   * moment a new conversation is the answer.
+   */
+  private renderContextBar(): void {
+    if (!this.contextBarEl) return;
+    this.contextBarEl.empty();
+
+    const ctx = this.sessions?.find((s) => s.id === this.sessionId)?.context;
+    if (!ctx || ctx.pct === null || ctx.pct === undefined) {
+      this.contextBarEl.addClass("traccoon-hidden");
+      return;
+    }
+    this.contextBarEl.removeClass("traccoon-hidden");
+
+    const pct = Math.max(0, Math.min(100, ctx.pct));
+    const level = pct >= 90 ? "high" : pct >= 75 ? "warn" : "calm";
+    const fill = this.contextBarEl.createDiv({ cls: `traccoon-ctx-fill traccoon-ctx-${level}` });
+    fill.style.width = `${pct}%`;
+
+    const parts = [
+      `context ${short(ctx.input_tokens)} of ${short(ctx.context_tokens ?? 0)} (${pct}%)`,
+      ctx.model ? `model ${ctx.model}` : "",
+      ctx.verbatim_exchanges !== undefined
+        ? `${ctx.verbatim_exchanges} exchanges verbatim, older ones summarised`
+        : "",
+    ].filter(Boolean);
+    this.contextBarEl.setAttr("title", parts.join(" · "));
+
+    if (pct >= 75) {
+      this.setStatus(`context ${pct}% — a new conversation would start light`);
+    }
   }
 
   /** Everything that is not switching or starting: rename, close, archive, refresh. */
@@ -727,4 +768,12 @@ function stamp(s: Session): number {
   const when = s.last_message_at || s.created_at;
   const t = Date.parse(when);
   return Number.isNaN(t) ? 0 : t;
+}
+
+/** 12480 -> "12.5k". Four digits of token count say nothing a glance can use. */
+function short(n: number): string {
+  if (!n) return "0";
+  if (n < 1000) return String(n);
+  const k = n / 1000;
+  return `${k < 10 ? k.toFixed(1) : Math.round(k)}k`;
 }

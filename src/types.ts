@@ -13,6 +13,17 @@ export interface ChatMsg {
   session_id?: number | null;
 }
 
+/** How full the window was on the newest run of a conversation. Absent on older backends. */
+export interface SessionContext {
+  input_tokens: number;
+  model: string;
+  context_tokens: number | null;
+  pct: number | null;
+  verbatim_exchanges?: number;
+  summary_chars?: number;
+  measured_at?: string;
+}
+
 export interface Session {
   id: number;
   agent: string;
@@ -22,6 +33,7 @@ export interface Session {
   closed_at: string | null;
   message_count?: number;
   running?: boolean;
+  context?: SessionContext | null;
 }
 
 export interface ChatPage {

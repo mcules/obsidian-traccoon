@@ -343,3 +343,28 @@ button.traccoon-chip-off {
   width: 16px;
   height: 16px;
 }
+
+/* --- How full the context is ---------------------------------------------- */
+
+.traccoon-ctx {
+  height: 3px;
+  background: var(--background-modifier-border);
+}
+
+.traccoon-ctx.traccoon-hidden {
+  display: none;
+}
+
+.traccoon-ctx-fill {
+  height: 100%;
+}
+
+.traccoon-ctx-calm {
+  background: var(--text-faint);
+}
+.traccoon-ctx-warn {
+  background: var(--color-orange);
+}
+.traccoon-ctx-high {
+  background: var(--color-red);
+}
