@@ -6,9 +6,6 @@ import { TraccoonChatView, VIEW_TYPE_TRACCOON } from "./view";
 import { NewTicketModal } from "./ticket";
 import { editorContext } from "./context";
 
-/** The token lives about a day; refreshing well before that keeps a long session alive. */
-const REFRESH_EVERY_MS = 6 * 60 * 60 * 1000;
-
 export default class TraccoonPlugin extends Plugin {
   settings!: TraccoonSettings;
   api!: TraccoonApi;
@@ -47,11 +44,6 @@ export default class TraccoonPlugin extends Plugin {
     });
 
     this.app.workspace.onLayoutReady(() => this.reconnect());
-    this.registerInterval(
-      window.setInterval(() => {
-        if (this.api.configured) void this.api.refresh().catch(() => undefined);
-      }, REFRESH_EVERY_MS),
-    );
   }
 
   onunload(): void {
@@ -81,7 +73,7 @@ export default class TraccoonPlugin extends Plugin {
 
   // -- websocket ------------------------------------------------------------
 
-  /** Rebuilds the office socket after a login, a logout or a settings change. */
+  /** Rebuilds the office socket after the token or the server address changed. */
   reconnect(): void {
     this.socket?.close();
     this.socket = null;
@@ -99,7 +91,7 @@ export default class TraccoonPlugin extends Plugin {
 
   private newTicket(): void {
     if (!this.api.configured) {
-      new Notice("Traccoon: log in first");
+      new Notice("Traccoon: set server and access token first");
       return;
     }
     const file = this.app.workspace.getActiveFile();

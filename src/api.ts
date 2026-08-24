@@ -50,12 +50,11 @@ export class TraccoonApi {
       throw new TraccoonError(0, (e as Error).message || "Network error");
     }
 
-    if (res.status === 401 && !path.startsWith("/auth/")) {
-      // The token is gone or expired. Dropping it here keeps the plugin from hammering the
-      // server with a credential that will never work again.
-      this.settings.token = "";
-      await this.persist();
-      throw new TraccoonError(401, "Not authenticated — log in again in the settings");
+    if (res.status === 401) {
+      // The token is unknown, revoked or expired. It is NOT dropped here: a token the human
+      // pasted stays where they put it, and a server that was briefly reachable under a
+      // wrong address must not cost them the value in the settings field.
+      throw new TraccoonError(401, "Token rejected — check it in the settings");
     }
     if (res.status >= 400) {
       let detail = `HTTP ${res.status}`;
@@ -68,31 +67,23 @@ export class TraccoonApi {
       } catch {
         /* body was not json */
       }
+      if (res.status === 403) {
+        // The most likely reason by far, and the one the server cannot phrase for us.
+        detail += " (token scope? the chat needs 'assistant', a ticket needs 'tickets')";
+      }
       throw new TraccoonError(res.status, detail, key);
     }
     if (res.status === 204 || !res.text) return undefined as T;
     return res.json as T;
   }
 
-  async login(email: string, password: string): Promise<void> {
-    if (!email || !password) throw new TraccoonError(0, "E-mail and password are required");
-    const out = await this.request<{ access_token: string }>("/auth/login", "POST", {
-      email,
-      password,
-    });
-    this.settings.token = out.access_token;
-    this.settings.email = email;
-    await this.persist();
-  }
-
-  /** Keeps a long-lived session alive without storing the password. */
-  async refresh(): Promise<void> {
-    if (!this.settings.token) return;
-    const out = await this.request<{ access_token: string }>("/auth/refresh", "POST");
-    this.settings.token = out.access_token;
-    await this.persist();
-  }
-
+  /**
+   * Who the token belongs to.
+   *
+   * There is no login and no refresh here on purpose. A password in the settings would be a
+   * credential that cannot be taken back without changing it everywhere; the access token
+   * can be revoked in Traccoon on its own, which is the whole point of using one.
+   */
   me(): Promise<{ id: number; username: string; email: string }> {
     return this.request("/auth/me");
   }

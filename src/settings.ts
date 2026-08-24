@@ -5,8 +5,11 @@ export type ContextMode = "path_and_selection" | "path_only" | "off";
 
 export interface TraccoonSettings {
   baseUrl: string;
-  email: string;
-  /** JWT from POST /auth/login. Stored in data.json — see the warning in the settings tab. */
+  /**
+   * Personal access token (`trc_…`), created in Traccoon under Settings → Personal.
+   * A password is deliberately not part of this plugin: a token can be revoked on its own,
+   * a password cannot.
+   */
   token: string;
   contextMode: ContextMode;
   ticketProjectId: number | null;
@@ -16,7 +19,6 @@ export interface TraccoonSettings {
 
 export const DEFAULT_SETTINGS: TraccoonSettings = {
   baseUrl: "",
-  email: "",
   token: "",
   contextMode: "path_and_selection",
   ticketProjectId: null,
@@ -26,7 +28,6 @@ export const DEFAULT_SETTINGS: TraccoonSettings = {
 
 export class TraccoonSettingTab extends PluginSettingTab {
   plugin: TraccoonPlugin;
-  private password = "";
 
   constructor(app: App, plugin: TraccoonPlugin) {
     super(app, plugin);
@@ -47,52 +48,43 @@ export class TraccoonSettingTab extends PluginSettingTab {
           .onChange(async (v) => {
             this.plugin.settings.baseUrl = v.trim().replace(/\/+$/, "");
             await this.plugin.saveSettings();
+            this.plugin.reconnect();
           }),
       );
 
     new Setting(containerEl)
-      .setName("E-Mail")
-      .addText((t) =>
-        t
-          .setPlaceholder("you@example.com")
-          .setValue(this.plugin.settings.email)
-          .onChange(async (v) => {
-            this.plugin.settings.email = v.trim();
-            await this.plugin.saveSettings();
-          }),
-      );
-
-    new Setting(containerEl)
-      .setName("Password")
+      .setName("Access token")
       .setDesc(
-        "Used once to fetch a token. The password itself is never stored; the token is kept in this plugin's data.json.",
+        "Traccoon → Settings → Personal → Access tokens. Scopes: 'assistant' for the chat, " +
+          "'tickets' additionally for creating tickets from a note.",
       )
       .addText((t) => {
         t.inputEl.type = "password";
-        t.setPlaceholder("••••••••").onChange((v) => (this.password = v));
-      })
-      .addButton((b) =>
-        b
-          .setButtonText("Log in")
-          .setCta()
-          .onClick(async () => {
-            try {
-              await this.plugin.api.login(this.plugin.settings.email, this.password);
-              this.password = "";
-              new Notice("Traccoon: logged in");
-              this.display();
-            } catch (e) {
-              new Notice(`Traccoon login failed: ${(e as Error).message}`);
-            }
-          }),
-      );
+        t.inputEl.classList.add("traccoon-wide-input");
+        t.setPlaceholder("trc_…")
+          .setValue(this.plugin.settings.token)
+          .onChange(async (v) => {
+            this.plugin.settings.token = v.trim();
+            await this.plugin.saveSettings();
+            this.plugin.reconnect();
+          });
+      });
 
-    const status = this.plugin.settings.token ? "token present" : "not logged in";
     new Setting(containerEl)
-      .setName("Session")
-      .setDesc(status)
+      .setName("Connection")
+      .setDesc("Asks the server who this token belongs to.")
       .addButton((b) =>
-        b.setButtonText("Log out").onClick(async () => {
+        b.setButtonText("Test").onClick(async () => {
+          try {
+            const me = await this.plugin.api.me();
+            new Notice(`Traccoon: connected as ${me.username || me.email}`);
+          } catch (e) {
+            new Notice(`Traccoon: ${(e as Error).message}`);
+          }
+        }),
+      )
+      .addButton((b) =>
+        b.setButtonText("Forget token").onClick(async () => {
           this.plugin.settings.token = "";
           await this.plugin.saveSettings();
           this.plugin.reconnect();
@@ -103,8 +95,9 @@ export class TraccoonSettingTab extends PluginSettingTab {
     containerEl.createEl("p", {
       cls: "traccoon-warn",
       text:
-        "The access token is stored in plain text in .obsidian/plugins/traccoon-assistant/data.json. " +
-        "That file travels with every vault sync — treat every synced machine as holding a valid Traccoon session.",
+        "The token is stored in plain text in .obsidian/plugins/traccoon-assistant/data.json, " +
+        "which travels with every vault sync. Give this token only the scopes it needs, and " +
+        "revoke it in Traccoon when a device is lost — that works without touching your password.",
     });
 
     containerEl.createEl("h3", { text: "Chat" });
@@ -148,6 +141,10 @@ export class TraccoonSettingTab extends PluginSettingTab {
       );
 
     containerEl.createEl("h3", { text: "Tickets" });
+    containerEl.createEl("p", {
+      cls: "setting-item-description",
+      text: "Needs a token with the 'tickets' scope. Without it the chat still works.",
+    });
 
     new Setting(containerEl)
       .setName("Default project")
@@ -158,9 +155,11 @@ export class TraccoonSettingTab extends PluginSettingTab {
           const projects = await this.plugin.api.projects();
           for (const p of projects) d.addOption(String(p.id), `${p.key} — ${p.name}`);
         } catch {
-          /* offline or not logged in: the dropdown stays empty */
+          // No token, no scope, or no server: the dropdown stays empty instead of shouting.
         }
-        d.setValue(this.plugin.settings.ticketProjectId ? String(this.plugin.settings.ticketProjectId) : "");
+        d.setValue(
+          this.plugin.settings.ticketProjectId ? String(this.plugin.settings.ticketProjectId) : "",
+        );
         d.onChange(async (v) => {
           this.plugin.settings.ticketProjectId = v ? Number(v) : null;
           await this.plugin.saveSettings();

@@ -31,17 +31,28 @@ npm run deploy         # copies into the vault, override with TRACCOON_VAULT=...
 ```
 
 Then enable *Traccoon Assistant* under Settings → Community plugins, set the server URL
-(the frontend address, without `/api`) and log in with your Traccoon e-mail and password.
+(the frontend address, without `/api`) and paste an access token.
+
+Create the token in Traccoon under Settings → Personal → Access tokens. Scopes:
+
+- `assistant` — the chat, the tool gate, the live stream. This is the minimum.
+- `tickets` — additionally allows `Create ticket from this note`.
+
+There is no e-mail/password login in this plugin by design: a token can be revoked on its
+own, a password can only be changed, and changing it invalidates every session everywhere.
 
 `npm run dev` keeps esbuild watching; run `npm run deploy` again to push a build into the
 vault.
 
 ## Security
 
-The login exchanges your password for a JWT once; the password is never stored. The **token
-is stored in plain text** in `.obsidian/plugins/traccoon-assistant/data.json`, which is a
-normal vault file — every machine your vault syncs to holds a usable Traccoon session. If a
-device is lost, change the password in Traccoon: that is what invalidates the tokens.
+The **token is stored in plain text** in `.obsidian/plugins/traccoon-assistant/data.json`,
+which is a normal vault file — every machine your vault syncs to holds a usable token. Two
+consequences worth acting on:
+
+- give the token only the scopes it needs (`assistant` alone if you never create tickets),
+- when a device is lost, revoke that token in Traccoon. Nothing else changes, and no other
+  client has to be touched.
 
 ## Optional backend patch: exact run binding
 
@@ -67,7 +78,7 @@ the patch is not required to run.
 
 | Purpose | Endpoint |
 |---|---|
-| Login / refresh | `POST /api/auth/login`, `POST /api/auth/refresh` |
+| Identity check | `GET /api/auth/me` (token in `Authorization: Bearer`) |
 | Conversation | `GET /api/assistant/chat?limit&before&archive` |
 | Send | `POST /api/assistant/chat` `{text}` |
 | Tool gate | `POST /api/assistant/chat/{id}/decide` `{decision: once\|always\|never}` |
