@@ -8,8 +8,8 @@
 .traccoon-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
+  gap: 4px;
+  padding: 5px 8px;
   border-bottom: 1px solid var(--background-modifier-border);
 }
 
@@ -18,7 +18,7 @@
 }
 
 .traccoon-status {
-  flex: 1;
+  padding: 2px 10px;
   font-size: var(--font-ui-smaller);
   color: var(--text-muted);
   overflow: hidden;
@@ -26,10 +26,14 @@
   white-space: nowrap;
 }
 
+.traccoon-status.traccoon-hidden {
+  display: none;
+}
+
 .traccoon-icon-btn {
   background: none;
   box-shadow: none;
-  padding: 4px;
+  padding: 3px;
   color: var(--text-muted);
   cursor: pointer;
 }
@@ -50,12 +54,12 @@
 }
 
 .traccoon-msg {
-  margin-bottom: 10px;
+  margin-bottom: 7px;
 }
 
 .traccoon-bubble {
   border-radius: 8px;
-  padding: 5px 9px;
+  padding: 4px 8px;
   font-size: var(--font-ui-small);
 }
 
@@ -109,10 +113,17 @@
   color: var(--text-faint);
 }
 
-/* The row of state, time and archive is bookkeeping. It stays readable on demand and stops
-   competing with the conversation for attention. */
-.traccoon-msg:not(:hover) .traccoon-meta {
-  opacity: 0.55;
+/* Bookkeeping: hidden until asked for. `visibility` rather than `display`, so the row keeps
+   its height and the conversation does not jump under the pointer. Anything the human has to
+   react to carries `traccoon-meta-loud` and ignores this. */
+.traccoon-msg:not(:hover) .traccoon-meta:not(.traccoon-meta-loud) {
+  visibility: hidden;
+  height: 0;
+  margin: 0;
+}
+
+.traccoon-meta-loud {
+  opacity: 0.85;
 }
 
 .traccoon-badge {
@@ -270,9 +281,9 @@
 .traccoon-sessions {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  border-bottom: 1px solid var(--background-modifier-border);
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
 }
 
 .traccoon-sessions.traccoon-hidden {
@@ -329,4 +340,10 @@ button.traccoon-chip-off {
 .is-mobile .traccoon-chip-x .svg-icon {
   width: 16px;
   height: 16px;
+}
+
+.is-mobile .traccoon-msg .traccoon-meta {
+  visibility: visible;
+  height: auto;
+  opacity: 0.5;
 }

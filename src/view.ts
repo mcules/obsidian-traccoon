@@ -1,4 +1,12 @@
-import { ItemView, MarkdownRenderer, Notice, Platform, WorkspaceLeaf, setIcon } from "obsidian";
+import {
+  ItemView,
+  MarkdownRenderer,
+  Menu,
+  Notice,
+  Platform,
+  WorkspaceLeaf,
+  setIcon,
+} from "obsidian";
 import type TraccoonPlugin from "./main";
 import { RUNNING_STATES } from "./types";
 import type { ChatMsg, OfficeEvent, Session } from "./types";
@@ -78,36 +86,18 @@ export class TraccoonChatView extends ItemView {
 
   // -- chrome ---------------------------------------------------------------
 
+  /**
+   * One header row, not three.
+   *
+   * The tab already says what this view is, so the title is gone; the conversation picker
+   * takes the width instead. Everything that is not "switch" or "start a new one" moved into
+   * a menu — seven icons across a sidebar this narrow was a row nobody could hit anyway, and
+   * each row of chrome costs a message of reading space.
+   */
   private buildChrome(): void {
     const head = this.contentEl.createDiv({ cls: "traccoon-head" });
-    head.createSpan({ cls: "traccoon-title", text: "Traccoon Assistant" });
-    this.statusEl = head.createSpan({ cls: "traccoon-status", text: "" });
-
-    const btn = (icon: string, label: string, fn: () => void) => {
-      const b = head.createEl("button", { cls: "traccoon-icon-btn", attr: { "aria-label": label } });
-      setIcon(b, icon);
-      b.onclick = fn;
-      return b;
-    };
-    btn("refresh-cw", "Refresh", () => void this.reload(false));
-    btn("archive", "Show archive", () => {
-      this.archive = !this.archive;
-      this.older = [];
-      void this.reload(true);
-    });
-    btn("archive-restore", "Archive everything finished", async () => {
-      if (this.archive) return;
-      try {
-        const out = await this.plugin.api.archiveAll();
-        new Notice(`Traccoon: ${out.archived} archived`);
-        this.older = [];
-        await this.reload(true);
-      } catch (e) {
-        this.fail(e);
-      }
-    });
-
-    this.sessionBarEl = this.contentEl.createDiv({ cls: "traccoon-sessions" });
+    this.sessionBarEl = head.createDiv({ cls: "traccoon-sessions" });
+    this.statusEl = this.contentEl.createDiv({ cls: "traccoon-status" });
 
     this.listEl = this.contentEl.createDiv({ cls: "traccoon-list" });
     this.listEl.onscroll = () => {
@@ -188,6 +178,8 @@ export class TraccoonChatView extends ItemView {
 
   private setStatus(text: string): void {
     this.statusEl.setText(text);
+    // An empty status bar is an empty line of chrome above every conversation.
+    this.statusEl.toggleClass("traccoon-hidden", !text);
   }
 
   private fail(e: unknown): void {
@@ -371,11 +363,13 @@ export class TraccoonChatView extends ItemView {
   private renderSessionBar(): void {
     if (!this.sessionBarEl) return;
     this.sessionBarEl.empty();
+
     if (this.sessions === null) {
-      this.sessionBarEl.addClass("traccoon-hidden");
+      // No session API on the other side: nothing to switch between, so the row carries only
+      // the menu.
+      this.moreButton(this.sessionBarEl);
       return;
     }
-    this.sessionBarEl.removeClass("traccoon-hidden");
 
     const select = this.sessionBarEl.createEl("select", { cls: "dropdown traccoon-session-select" });
     if (!this.sessions.length) {
@@ -392,31 +386,89 @@ export class TraccoonChatView extends ItemView {
     select.value = this.sessionId ? String(this.sessionId) : "";
     select.onchange = () => void this.setSession(select.value ? Number(select.value) : null);
 
-    const btn = (icon: string, label: string, fn: () => void) => {
-      const b = this.sessionBarEl.createEl("button", {
-        cls: "traccoon-icon-btn",
-        attr: { "aria-label": label },
-      });
-      setIcon(b, icon);
-      b.onclick = fn;
-    };
-
-    btn("plus", "New conversation", () => this.newSession());
-    btn("pencil", "Rename this conversation", () => this.renameSession());
-    const current = this.sessions.find((s) => s.id === this.sessionId);
-    if (current?.closed_at) {
-      btn("rotate-ccw", "Reopen this conversation", () => void this.toggleClose(false));
-    } else if (current) {
-      btn("x", "Close this conversation", () => void this.toggleClose(true));
-    }
-    const eye = this.showClosedSessions ? "eye-off" : "eye";
-    btn(eye, this.showClosedSessions ? "Hide closed ones" : "Show closed ones", () => {
-      this.showClosedSessions = !this.showClosedSessions;
-      void this.loadSessions();
+    const plus = this.sessionBarEl.createEl("button", {
+      cls: "traccoon-icon-btn",
+      attr: { "aria-label": "New conversation" },
     });
+    setIcon(plus, "plus");
+    plus.onclick = () => this.newSession();
+
+    this.moreButton(this.sessionBarEl);
   }
 
-  /** The command in the palette; the button in the bar goes through the same door. */
+  /** Everything that is not switching or starting: rename, close, archive, refresh. */
+  private moreButton(host: HTMLElement): void {
+    const more = host.createEl("button", {
+      cls: "traccoon-icon-btn",
+      attr: { "aria-label": "More" },
+    });
+    setIcon(more, "more-vertical");
+    more.onclick = (evt) => {
+      const menu = new Menu();
+      const current = this.sessions?.find((s) => s.id === this.sessionId);
+
+      if (current) {
+        menu.addItem((i) =>
+          i.setTitle("Rename conversation").setIcon("pencil").onClick(() => this.renameSession()),
+        );
+        menu.addItem((i) =>
+          i
+            .setTitle(current.closed_at ? "Reopen conversation" : "Close conversation")
+            .setIcon(current.closed_at ? "rotate-ccw" : "x")
+            .onClick(() => void this.toggleClose(!current.closed_at)),
+        );
+      }
+      if (this.sessions !== null) {
+        menu.addItem((i) =>
+          i
+            .setTitle(this.showClosedSessions ? "Hide closed conversations" : "Show closed conversations")
+            .setIcon(this.showClosedSessions ? "eye-off" : "eye")
+            .setChecked(this.showClosedSessions)
+            .onClick(() => {
+              this.showClosedSessions = !this.showClosedSessions;
+              void this.loadSessions();
+            }),
+        );
+        menu.addSeparator();
+      }
+
+      menu.addItem((i) =>
+        i
+          .setTitle(this.archive ? "Show current messages" : "Show archived messages")
+          .setIcon("archive")
+          .setChecked(this.archive)
+          .onClick(() => {
+            this.archive = !this.archive;
+            this.older = [];
+            void this.reload(true);
+          }),
+      );
+      if (!this.archive) {
+        menu.addItem((i) =>
+          i
+            .setTitle("Archive everything finished")
+            .setIcon("archive-restore")
+            .onClick(async () => {
+              try {
+                const out = await this.plugin.api.archiveAll();
+                new Notice(`Traccoon: ${out.archived} archived`);
+                this.older = [];
+                await this.reload(true);
+              } catch (e) {
+                this.fail(e);
+              }
+            }),
+        );
+      }
+      menu.addSeparator();
+      menu.addItem((i) =>
+        i.setTitle("Refresh").setIcon("refresh-cw").onClick(() => void this.reload(false)),
+      );
+      menu.showAtMouseEvent(evt);
+    };
+  }
+
+  /** The command in the palette; the plus in the header goes through the same door. */
   startNewSession(): void {
     if (this.sessions === null) {
       new Notice("Traccoon: this server has no conversations yet");
@@ -580,8 +632,14 @@ export class TraccoonChatView extends ItemView {
     const mine = wrap.createDiv({ cls: "traccoon-bubble traccoon-mine" });
     mine.createDiv({ cls: "traccoon-text", text: m.text });
 
-    const meta = wrap.createDiv({ cls: "traccoon-meta" });
-    meta.createSpan({ cls: `traccoon-badge traccoon-${m.status}`, text: m.status });
+    // A finished message says "done" on every single row, which is the least interesting word
+    // in the conversation. The line stays in the DOM for the hover, but only a state worth
+    // reacting to — running, waiting, failed — shows itself unasked.
+    const noteworthy = m.status !== "done" || Boolean(m.error);
+    const meta = wrap.createDiv({
+      cls: `traccoon-meta${noteworthy ? " traccoon-meta-loud" : ""}`,
+    });
+    if (noteworthy) meta.createSpan({ cls: `traccoon-badge traccoon-${m.status}`, text: m.status });
     meta.createSpan({ text: new Date(m.created_at).toLocaleString() });
     if (!RUNNING_STATES.includes(m.status)) {
       const a = meta.createEl("button", {
