@@ -34,6 +34,8 @@ export class TraccoonChatView extends ItemView {
   private sessions: Session[] | null = null;
   private sessionId: number | null = null;
   private showClosedSessions = false;
+  /** The note context is attached by default; the x on the chip drops it for the next message. */
+  private contextOff = false;
 
   private sessionBarEl!: HTMLElement;
   private listEl!: HTMLElement;
@@ -140,15 +142,48 @@ export class TraccoonChatView extends ItemView {
     this.renderContextChip();
   }
 
+  /**
+   * What would travel with the next message, and a way to say no.
+   *
+   * Dropping the context stays dropped until it is picked up again — including across a
+   * change of note. A chip that silently re-arms itself would put the path back into a
+   * message the moment attention is elsewhere, which is exactly the complaint.
+   */
   private renderContextChip(): void {
-    const ctx = editorContext(this.app, this.plugin.settings.contextMode);
+    const ctx = this.currentContext();
     this.contextEl.empty();
     if (!ctx) return;
+
+    if (this.contextOff) {
+      const off = this.contextEl.createEl("button", {
+        cls: "traccoon-chip traccoon-chip-off",
+        text: `+ ${ctx.path}`,
+        attr: { "aria-label": "Attach the note again" },
+      });
+      off.onclick = () => {
+        this.contextOff = false;
+        this.renderContextChip();
+      };
+      return;
+    }
+
+    const chip = this.contextEl.createSpan({ cls: "traccoon-chip" });
     const sel = ctx.selection.trim();
-    this.contextEl.createSpan({
-      cls: "traccoon-chip",
-      text: sel ? `${ctx.path} · selection ${sel.length} chars` : ctx.path,
+    chip.createSpan({ text: sel ? `${ctx.path} · selection ${sel.length} chars` : ctx.path });
+    const drop = chip.createEl("button", {
+      cls: "traccoon-chip-x",
+      attr: { "aria-label": "Do not send the note along" },
     });
+    setIcon(drop, "x");
+    drop.onclick = () => {
+      this.contextOff = true;
+      this.renderContextChip();
+    };
+  }
+
+  /** The editor context as it would be sent — null when switched off or unavailable. */
+  private currentContext() {
+    return editorContext(this.app, this.plugin.settings.contextMode);
   }
 
   private setStatus(text: string): void {
@@ -244,7 +279,7 @@ export class TraccoonChatView extends ItemView {
     if (this.busy) return;
     const raw = (text ?? this.inputEl.value).trim();
     if (!raw) return;
-    const body = withContext(raw, editorContext(this.app, this.plugin.settings.contextMode));
+    const body = withContext(raw, this.contextOff ? null : this.currentContext());
     this.busy = true;
     try {
       if (text === undefined) this.inputEl.value = "";
@@ -395,14 +430,16 @@ export class TraccoonChatView extends ItemView {
       this.app,
       {
         title: "New conversation",
-        placeholder: "Title (empty: taken from the first message)",
+        placeholder: "Title (leave empty: taken from the first message)",
         cta: "Create",
+        // An empty title is a legitimate answer: the server then names the conversation
+        // after the first message. Swallowing it created nothing at all.
+        allowEmpty: true,
       },
       async (title) => void (await this.createSession(title)),
     ).open();
   }
 
-  /** The modal only calls back with a non-empty value, so the empty case runs its own path. */
   private async createSession(title?: string): Promise<void> {
     try {
       const s = await this.plugin.api.createSession(title ? { title } : {});

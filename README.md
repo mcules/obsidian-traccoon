@@ -18,7 +18,8 @@ Obsidian MCP server — so a message names a note by path instead of pasting it.
 - **Live run** — tool calls, agent text and the end of a run arrive over the office websocket
   (`/api/ws`, envelope from `backend/app/services/office.py`) while the run is going.
 - **Context** — the active note path, and the selection if you made one, travel with the
-  message. Configurable down to path-only or nothing.
+  message. The chip above the input has an `x` that drops it; it stays dropped until you click
+  the chip again, also across a change of note. Settings turn it down to path-only or off.
 - **Tickets** — `Create ticket from this note` opens a small form (project, summary,
   priority, description) and writes the resulting key back into the note as a link.
 

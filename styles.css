@@ -256,3 +256,45 @@
 .is-mobile .traccoon-session-select {
   font-size: 16px;
 }
+
+.traccoon-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.traccoon-chip-x {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  box-shadow: none;
+  padding: 0;
+  margin: 0;
+  height: 14px;
+  color: var(--text-faint);
+  cursor: pointer;
+}
+.traccoon-chip-x:hover {
+  color: var(--text-normal);
+}
+.traccoon-chip-x .svg-icon {
+  width: 12px;
+  height: 12px;
+}
+
+button.traccoon-chip-off {
+  border: 1px dashed var(--background-modifier-border);
+  background: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  height: auto;
+}
+
+.is-mobile .traccoon-chip-x {
+  height: 22px;
+  padding: 0 6px;
+}
+.is-mobile .traccoon-chip-x .svg-icon {
+  width: 16px;
+  height: 16px;
+}

@@ -6,7 +6,14 @@ export class TextPromptModal extends Modal {
 
   constructor(
     app: App,
-    private opts: { title: string; placeholder?: string; value?: string; cta?: string },
+    private opts: {
+      title: string;
+      placeholder?: string;
+      value?: string;
+      cta?: string;
+      /** When true an empty answer is passed on instead of swallowed. */
+      allowEmpty?: boolean;
+    },
     private onSubmit: (value: string) => void,
   ) {
     super(app);
@@ -20,7 +27,7 @@ export class TextPromptModal extends Modal {
     const submit = () => {
       const v = this.value.trim();
       this.close();
-      if (v) this.onSubmit(v);
+      if (v || this.opts.allowEmpty) this.onSubmit(v);
     };
 
     new Setting(contentEl).addText((t) => {
