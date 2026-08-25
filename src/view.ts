@@ -53,6 +53,7 @@ export class TraccoonChatView extends ItemView {
   private contextEl!: HTMLElement;
   private poll: number | null = null;
   private draftTimer: number | null = null;
+  private sendBtn!: HTMLButtonElement;
   private stickToBottom = true;
 
   constructor(leaf: WorkspaceLeaf, plugin: TraccoonPlugin) {
@@ -134,8 +135,8 @@ export class TraccoonChatView extends ItemView {
     this.inputEl.oninput = () => this.scheduleDraftSave();
 
     const row = foot.createDiv({ cls: "traccoon-foot-row" });
-    const send = row.createEl("button", { cls: "mod-cta", text: "Send" });
-    send.onclick = () => void this.send();
+    this.sendBtn = row.createEl("button", { cls: "mod-cta traccoon-send", text: "Send" });
+    this.sendBtn.onclick = () => void this.send();
     this.renderContextChip();
   }
 
@@ -289,6 +290,7 @@ export class TraccoonChatView extends ItemView {
     if (!raw) return;
     const body = withContext(raw, this.contextOff ? null : this.currentContext());
     this.busy = true;
+    this.showSending(true);
     try {
       // Open the conversation here rather than letting the send do it implicitly. The server
       // names an unnamed session after the first 60 characters of the message — which would
@@ -332,6 +334,26 @@ export class TraccoonChatView extends ItemView {
       await this.saveDraft();
     } finally {
       this.busy = false;
+      this.showSending(false);
+    }
+  }
+
+  /**
+   * The button says what it is doing.
+   *
+   * A send crosses a network and can take seconds; without a sign of life the only honest
+   * reading of a still screen is "my click did nothing", and the second click is on its way.
+   * The width is fixed so the row does not jump between the two labels.
+   */
+  private showSending(on: boolean): void {
+    if (!this.sendBtn) return;
+    this.sendBtn.disabled = on;
+    this.sendBtn.empty();
+    if (on) {
+      this.sendBtn.createDiv({ cls: "traccoon-spinner" });
+      this.sendBtn.createSpan({ text: "Sending…" });
+    } else {
+      this.sendBtn.setText("Send");
     }
   }
 

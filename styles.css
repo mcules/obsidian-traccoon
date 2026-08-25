@@ -382,3 +382,36 @@ button.traccoon-chip-off {
 .traccoon-ctx-label:hover {
   color: var(--text-normal);
 }
+
+/* --- Sending -------------------------------------------------------------- */
+
+.traccoon-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-width: 6.5em;
+}
+
+.traccoon-spinner {
+  width: 12px;
+  height: 12px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  opacity: 0.8;
+  animation: traccoon-spin 0.7s linear infinite;
+}
+
+@keyframes traccoon-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Someone who turned animations off gets a static ring rather than a jitter. */
+@media (prefers-reduced-motion: reduce) {
+  .traccoon-spinner {
+    animation: none;
+  }
+}
