@@ -17,6 +17,12 @@ export interface TraccoonSettings {
   pollIntervalMs: number;
   /** The session the chat was last in, so reopening the view lands where you left. */
   lastSessionId: number | null;
+  /**
+   * Unsent text per conversation, keyed by session id ("none" before the first one exists.)
+   * Written while typing so that a crash, a restart or an unreachable server cannot take a
+   * message that was never sent.
+   */
+  drafts: Record<string, string>;
 }
 
 export const DEFAULT_SETTINGS: TraccoonSettings = {
@@ -27,6 +33,7 @@ export const DEFAULT_SETTINGS: TraccoonSettings = {
   liveEvents: true,
   pollIntervalMs: 3000,
   lastSessionId: null,
+  drafts: {},
 };
 
 export class TraccoonSettingTab extends PluginSettingTab {

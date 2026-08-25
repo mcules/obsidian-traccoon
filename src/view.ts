@@ -52,6 +52,7 @@ export class TraccoonChatView extends ItemView {
   private inputEl!: HTMLTextAreaElement;
   private contextEl!: HTMLElement;
   private poll: number | null = null;
+  private draftTimer: number | null = null;
   private stickToBottom = true;
 
   constructor(leaf: WorkspaceLeaf, plugin: TraccoonPlugin) {
@@ -75,6 +76,7 @@ export class TraccoonChatView extends ItemView {
     this.buildChrome();
     this.plugin.attachView(this);
     await this.loadSessions();
+    this.restoreDraft();
     await this.reload(true);
     this.registerEvent(this.app.workspace.on("active-leaf-change", () => this.renderContextChip()));
     this.registerEvent(this.app.workspace.on("file-open", () => this.renderContextChip()));
@@ -82,6 +84,7 @@ export class TraccoonChatView extends ItemView {
 
   async onClose(): Promise<void> {
     this.clearPoll();
+    await this.saveDraft();
     this.plugin.detachView(this);
   }
 
@@ -128,6 +131,8 @@ export class TraccoonChatView extends ItemView {
         }
       };
     }
+    this.inputEl.oninput = () => this.scheduleDraftSave();
+
     const row = foot.createDiv({ cls: "traccoon-foot-row" });
     const send = row.createEl("button", { cls: "mod-cta", text: "Send" });
     send.onclick = () => void this.send();
@@ -269,15 +274,22 @@ export class TraccoonChatView extends ItemView {
     }
   }
 
+  /**
+   * Send, and never lose what was typed.
+   *
+   * The input is cleared only after the server has taken the message. It used to be cleared
+   * first, which meant a restart of Traccoon at the wrong second swallowed a long text with
+   * no way back. A draft is also written to disk while typing, so even a crash of Obsidian
+   * leaves the words where they were.
+   */
   async send(text?: string): Promise<void> {
     if (this.busy) return;
+    const fromInput = text === undefined;
     const raw = (text ?? this.inputEl.value).trim();
     if (!raw) return;
     const body = withContext(raw, this.contextOff ? null : this.currentContext());
     this.busy = true;
     try {
-      if (text === undefined) this.inputEl.value = "";
-
       // Open the conversation here rather than letting the send do it implicitly. The server
       // names an unnamed session after the first 60 characters of the message — which would
       // be "test — Obsidian: [[05 Daily Notes/…]]", the attached note path and all. What
@@ -295,6 +307,13 @@ export class TraccoonChatView extends ItemView {
       }
 
       const msg = await this.plugin.api.send(body, this.sessionId);
+
+      // Accepted — only now may the text go.
+      if (fromInput) {
+        this.inputEl.value = "";
+        await this.clearDraft();
+      }
+
       if (!this.sessionId && msg.session_id) {
         await this.setSession(msg.session_id, { reload: false });
         void this.loadSessions();
@@ -304,10 +323,55 @@ export class TraccoonChatView extends ItemView {
       this.render(false);
       this.schedulePoll();
     } catch (e) {
-      this.fail(e);
+      const why = (e as Error).message || "unknown error";
+      this.setStatus(`not sent — ${why}. Your text is still in the box.`);
+      new Notice(`Traccoon: not sent — ${why}. The message stayed in the input.`, 8000);
+      // Whatever went wrong, the words are the one thing that must survive it. A message sent
+      // from a selection lands in the box too — otherwise it would exist nowhere.
+      if (!this.inputEl.value.trim()) this.inputEl.value = raw;
+      await this.saveDraft();
     } finally {
       this.busy = false;
     }
+  }
+
+  // -- drafts ----------------------------------------------------------------
+
+  private draftKey(): string {
+    return String(this.sessionId ?? "none");
+  }
+
+  /** Debounced, because this writes to disk and a keystroke is not worth a file write. */
+  private scheduleDraftSave(): void {
+    if (this.draftTimer !== null) window.clearTimeout(this.draftTimer);
+    this.draftTimer = window.setTimeout(() => {
+      this.draftTimer = null;
+      void this.saveDraft();
+    }, 700);
+  }
+
+  private async saveDraft(): Promise<void> {
+    const text = this.inputEl?.value ?? "";
+    const drafts = { ...this.plugin.settings.drafts };
+    if (text.trim()) drafts[this.draftKey()] = text;
+    else delete drafts[this.draftKey()];
+    this.plugin.settings.drafts = drafts;
+    await this.plugin.saveSettings();
+  }
+
+  private async clearDraft(): Promise<void> {
+    if (this.draftTimer !== null) {
+      window.clearTimeout(this.draftTimer);
+      this.draftTimer = null;
+    }
+    await this.saveDraft();
+  }
+
+  private restoreDraft(): void {
+    if (!this.inputEl) return;
+    const draft = this.plugin.settings.drafts[this.draftKey()] ?? "";
+    // Never overwrite something half-typed with an older draft.
+    if (!this.inputEl.value.trim()) this.inputEl.value = draft;
   }
 
   private async decide(id: number, decision: "once" | "always" | "never"): Promise<void> {
@@ -374,6 +438,7 @@ export class TraccoonChatView extends ItemView {
     this.older = [];
     this.stickToBottom = true;
     this.renderSessionBar();
+    this.restoreDraft();
     if (opts.reload !== false) await this.reload(true);
   }
 
