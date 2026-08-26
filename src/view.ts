@@ -783,6 +783,28 @@ export class TraccoonChatView extends ItemView {
 
   private consume(ev: OfficeEvent): void {
     const sid = ev.sid || "";
+
+    // The room announces whose it is: `run_start` carries `task_id`/`issue_key`, and for an
+    // assistant run both read `assistant-<message id>`. That is the only reliable claim while
+    // a run is going — `AssistantTask.run_id` is written when the run FINISHES
+    // (`worker/__main__.py`, `t.run_id = run_id`), so waiting for it means watching nothing
+    // happen until the answer is already there. A room that names a message we do not have is
+    // somebody else's work — the mail intake, a job — and is dropped here.
+    if (ev.kind === "run_start" && !this.sidToMsg.has(sid)) {
+      const ref = String(ev.task_id ?? ev.issue_key ?? "");
+      const claim = /^assistant-(\d+)(?:[-_].*)?$/.exec(ref);
+      if (claim) {
+        const id = Number(claim[1]);
+        if (!this.messages.some((m) => m.id === id)) return;
+        this.sidToMsg.set(sid, id);
+        const parked = this.unclaimed.get(sid);
+        if (parked) {
+          this.unclaimed.delete(sid);
+          for (const old of parked) this.draw(id, old);
+        }
+      }
+    }
+
     const msgId = this.sidToMsg.get(sid);
     if (msgId === undefined) {
       // Ours-but-not-known-yet: a message sent seconds ago has no `run_id` in the payload

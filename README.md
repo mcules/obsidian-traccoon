@@ -110,6 +110,11 @@ and whatever the browser or the messenger is doing, not only this conversation. 
 `ev.sid`, the room of a run (`run:<root run>`), matched against the `run_id` of the messages
 in the open conversation.
 
+- A room is claimed from `run_start`, which carries `task_id`/`issue_key` — `assistant-<message
+  id>` for an assistant run. That claim works *while* the run goes; `AssistantTask.run_id` is
+  only written when it ends, so waiting for it would mean an empty log until the answer is
+  already there. A run that was already in flight before the view opened sends no `run_start`,
+  so its log starts empty and only the result arrives.
 - Sub-agents share their parent's `sid`, so filtering on `run_id` would drop half of a trail.
 - A continuation after a budget stop is a **new** run on the same message, so the set of rooms
   is rebuilt on every fetch instead of once on opening.
