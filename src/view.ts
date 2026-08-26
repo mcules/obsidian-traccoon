@@ -1,5 +1,6 @@
 import {
   ItemView,
+  Keymap,
   MarkdownRenderer,
   Menu,
   Notice,
@@ -815,6 +816,56 @@ export class TraccoonChatView extends ItemView {
     }
   }
 
+  // -- links into the vault ---------------------------------------------------
+
+  /** Which note a relative link is resolved against: the one open next to the chat. */
+  private sourcePath(): string {
+    return this.app.workspace.getActiveFile()?.path ?? "";
+  }
+
+  /**
+   * Make the links the renderer produced actually go somewhere.
+   *
+   * `MarkdownRenderer` turns `[[note]]` into an anchor with the right classes, but a view of
+   * our own is not an editor: nothing listens for the click. So we do, and hand the target to
+   * the workspace — with the modifier keys respected, because "open in a new pane" is muscle
+   * memory.
+   */
+  private wireLinks(host: HTMLElement): void {
+    host.querySelectorAll<HTMLAnchorElement>("a.internal-link").forEach((a) => {
+      const target = a.getAttr("data-href") || a.getAttr("href") || a.textContent || "";
+      a.onclick = (evt) => {
+        evt.preventDefault();
+        void this.app.workspace.openLinkText(target, this.sourcePath(), Keymap.isModEvent(evt));
+      };
+    });
+  }
+
+  /**
+   * Plain text with `[[wikilinks]]` turned into links.
+   *
+   * My own message is not rendered as markdown — it is what I typed, and running it through a
+   * renderer would reformat it behind my back. Only the wikilinks are singled out, because a
+   * note path that cannot be clicked is a path one has to search for by hand.
+   */
+  private writeWithLinks(host: HTMLElement, text: string): void {
+    const pattern = /\[\[([^\]]+)\]\]/g;
+    let last = 0;
+    let match: RegExpExecArray | null;
+    while ((match = pattern.exec(text)) !== null) {
+      if (match.index > last) host.appendText(text.slice(last, match.index));
+      const inner = match[1];
+      const [link, alias] = inner.split("|");
+      const a = host.createEl("a", { cls: "internal-link", text: alias || link });
+      a.onclick = (evt) => {
+        evt.preventDefault();
+        void this.app.workspace.openLinkText(link, this.sourcePath(), Keymap.isModEvent(evt));
+      };
+      last = match.index + match[0].length;
+    }
+    if (last < text.length) host.appendText(text.slice(last));
+  }
+
   /** Per message: when it was, archiving, and the text itself. */
   private messageMenu(evt: MouseEvent, m: ChatMsg, when: string): void {
     evt.preventDefault();
@@ -859,7 +910,7 @@ export class TraccoonChatView extends ItemView {
     const wrap = this.listEl.createDiv({ cls: "traccoon-msg" });
 
     const mine = wrap.createDiv({ cls: "traccoon-bubble traccoon-mine" });
-    mine.createDiv({ cls: "traccoon-text", text: m.text });
+    this.writeWithLinks(mine.createDiv({ cls: "traccoon-text" }), m.text);
 
     // A finished message needs no row of its own: "done" plus a timestamp under every entry
     // is the least interesting text on screen. Only a state to react to — running, waiting,
@@ -896,7 +947,9 @@ export class TraccoonChatView extends ItemView {
 
     if (m.result) {
       const out = wrap.createDiv({ cls: "traccoon-bubble traccoon-theirs" });
-      void MarkdownRenderer.render(this.app, m.result, out, "", this);
+      void MarkdownRenderer.render(this.app, m.result, out, this.sourcePath(), this).then(() =>
+        this.wireLinks(out),
+      );
     }
 
     const lines = this.live.get(m.id);
