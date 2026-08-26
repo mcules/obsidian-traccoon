@@ -100,6 +100,9 @@ export default class TraccoonPlugin extends Plugin {
       (ev) => {
         for (const v of this.views) v.onOfficeEvent(ev);
       },
+      (connected) => {
+        for (const v of this.views) v.onSocketStatus(connected);
+      },
     );
     this.socket.connect();
   }

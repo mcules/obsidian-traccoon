@@ -20,6 +20,8 @@ export const VIEW_TYPE_TRACCOON = "traccoon-assistant-chat";
 const PAGE = 20;
 const IDLE_POLL_MS = 20_000;
 const LIVE_LINES_PER_MSG = 200;
+const BUFFER_CAP = 500;
+const UNCLAIMED_ROOMS = 8;
 
 interface LiveLine {
   kind: string;
@@ -35,8 +37,13 @@ export class TraccoonChatView extends ItemView {
   private archive = false;
   private busy = false;
 
-  /** run id -> chat message id, so a stream of events knows which bubble it belongs to. */
-  private runToMsg = new Map<number, number>();
+  /** `sid` (the room of a run) -> chat message, the one filter that keeps others out. */
+  private sidToMsg = new Map<string, number>();
+  /** Events for a room we have not yet learned is ours; claimed or dropped, never shown. */
+  private unclaimed = new Map<string, OfficeEvent[]>();
+  private seenSeq = new Map<number, Set<number>>();
+  private buffering = false;
+  private buffer: OfficeEvent[] = [];
   private live = new Map<number, LiveLine[]>();
 
   /** null while unknown, and stays null against a backend that has no sessions. */
@@ -77,6 +84,10 @@ export class TraccoonChatView extends ItemView {
     this.contentEl.addClass("traccoon-view");
     this.buildChrome();
     this.plugin.attachView(this);
+    // Start in the conversation this vault last had open, before anything is fetched. Without
+    // it the first request goes out with no session_id, and the server then answers with the
+    // most recent conversation of the account — which may well be one from the messenger.
+    this.sessionId = this.plugin.settings.lastSessionId;
     await this.loadSessions();
     this.restoreDraft();
     await this.reload(true);
@@ -257,9 +268,24 @@ export class TraccoonChatView extends ItemView {
    * `run_id` is only in the payload when the backend carries the patch that exposes it.
    * Without it the websocket binds a run to the newest running message (see README).
    */
+  /**
+   * Which rooms belong to this conversation.
+   *
+   * Rebuilt on every fetch rather than once on opening: a run that hits its budget is
+   * continued as a NEW run, and that continuation shows up on the same message with a new
+   * `run_id`. The set has to be allowed to grow, or the second half of a long answer would
+   * be filtered away as foreign.
+   */
   private bindRunIds(): void {
     for (const m of this.messages) {
-      if (typeof m.run_id === "number" && m.run_id) this.runToMsg.set(m.run_id, m.id);
+      if (typeof m.run_id !== "number" || !m.run_id) continue;
+      const sid = `run:${m.run_id}`;
+      this.sidToMsg.set(sid, m.id);
+      const parked = this.unclaimed.get(sid);
+      if (parked) {
+        this.unclaimed.delete(sid);
+        for (const ev of parked) this.draw(m.id, ev);
+      }
     }
   }
 
@@ -456,7 +482,10 @@ export class TraccoonChatView extends ItemView {
     await this.plugin.saveSettings();
     // A run belongs to the conversation it ran in; carrying the mapping across would paste
     // the tool log of one session under a message of another.
-    this.runToMsg.clear();
+    this.sidToMsg.clear();
+    this.unclaimed.clear();
+    this.seenSeq.clear();
+    this.buffer = [];
     this.live.clear();
     this.older = [];
     this.stickToBottom = true;
@@ -732,30 +761,113 @@ export class TraccoonChatView extends ItemView {
   /**
    * One agent event from the office socket.
    *
-   * Only project-less runs are of interest here: those are the assistant and the scheduled
-   * jobs. Everything with a project belongs to a ticket and has its place in the web
-   * interface.
+   * The socket is one stream per account, not per conversation: it carries every run the
+   * account may see — the mail intake, the scheduled jobs, the browser, the messenger. The
+   * narrowing belongs here, and the field to narrow on is `sid`, the address of the room a
+   * run belongs to (`run:<root run>`). Sub-agents of a run share their parent's `sid`, so a
+   * filter on `run_id` would swallow half of the trail; a filter on `sid` catches the chain.
+   *
+   * Anything whose `sid` is not one of ours is dropped, not drawn. One event too few beats a
+   * foreign conversation appearing mid-sentence.
    */
   onOfficeEvent(ev: OfficeEvent): void {
-    if (ev.project_id) return;
-    let msgId = this.runToMsg.get(ev.run_id);
-    if (msgId === undefined) {
-      const candidate = [...this.messages].reverse().find((m) => RUNNING_STATES.includes(m.status));
-      if (!candidate) return;
-      msgId = candidate.id;
-      this.runToMsg.set(ev.run_id, msgId);
+    if (this.buffering) {
+      // Between connecting and the snapshot arriving, events are kept rather than drawn:
+      // otherwise the same second appears twice, once live and once from the snapshot.
+      this.buffer.push(ev);
+      if (this.buffer.length > BUFFER_CAP) this.buffer.shift();
+      return;
     }
+    this.consume(ev);
+  }
+
+  private consume(ev: OfficeEvent): void {
+    const sid = ev.sid || "";
+    const msgId = this.sidToMsg.get(sid);
+    if (msgId === undefined) {
+      // Ours-but-not-known-yet: a message sent seconds ago has no `run_id` in the payload
+      // until the next fetch. Park it under its room and let `bindRunIds` claim it later.
+      // A room that never turns out to be ours ages out of the map without ever being shown.
+      if (!sid.startsWith("run:")) return;
+      const parked = this.unclaimed.get(sid) ?? [];
+      parked.push(ev);
+      if (parked.length > LIVE_LINES_PER_MSG) parked.shift();
+      this.unclaimed.set(sid, parked);
+      if (this.unclaimed.size > UNCLAIMED_ROOMS) {
+        const oldest = this.unclaimed.keys().next().value;
+        if (oldest !== undefined) this.unclaimed.delete(oldest);
+      }
+      return;
+    }
+    this.draw(msgId, ev);
+  }
+
+  private draw(msgId: number, ev: OfficeEvent): void {
+    const seen = this.seenSeq.get(msgId) ?? new Set<number>();
+    if (typeof ev.seq === "number") {
+      if (seen.has(ev.seq)) return;
+      seen.add(ev.seq);
+      this.seenSeq.set(msgId, seen);
+    }
+
     const line = this.lineOf(ev);
-    if (!line) return;
-    const lines = this.live.get(msgId) ?? [];
-    lines.push(line);
-    if (lines.length > LIVE_LINES_PER_MSG) lines.splice(0, lines.length - LIVE_LINES_PER_MSG);
-    this.live.set(msgId, lines);
-    this.appendLive(msgId, line);
+    if (line) {
+      const lines = this.live.get(msgId) ?? [];
+      lines.push(line);
+      if (lines.length > LIVE_LINES_PER_MSG) lines.splice(0, lines.length - LIVE_LINES_PER_MSG);
+      this.live.set(msgId, lines);
+      this.appendLive(msgId, line);
+    }
+
     if (ev.kind === "run_end") {
       void this.reload(false);
       // The list carries the running marker and the moment of the last word; both just changed.
       void this.loadSessions();
+    }
+  }
+
+  /**
+   * The socket came up (again).
+   *
+   * Order matters and is prescribed by the server: connect, buffer, fetch the snapshot of
+   * every room still running, throw away what the snapshot already covered, then go live.
+   * `after_seq` exists for exactly this gap and must not be used as a poller — `seq` is
+   * handed out before the commit, so two concurrent runs can become visible out of order and
+   * a high-water mark would skip the row that arrives late with the lower number.
+   */
+  onSocketStatus(connected: boolean): void {
+    if (!connected) return;
+    void this.catchUp();
+  }
+
+  private async catchUp(): Promise<void> {
+    const running = this.messages.filter(
+      (m) => RUNNING_STATES.includes(m.status) && typeof m.run_id === "number" && m.run_id,
+    );
+    if (!running.length) return;
+
+    this.buffering = true;
+    const covered = new Map<number, number>();
+    try {
+      for (const m of running) {
+        const snap = await this.plugin.api.runEvents(m.run_id as number);
+        if (!snap) continue;
+        covered.set(m.id, snap.seq_to);
+        for (const ev of snap.events ?? []) this.draw(m.id, ev);
+      }
+    } catch (e) {
+      // A missing snapshot costs the log of a few seconds, not the answer — say it quietly.
+      this.setStatus(`live log incomplete: ${(e as Error).message}`);
+    } finally {
+      this.buffering = false;
+      const parked = this.buffer;
+      this.buffer = [];
+      for (const ev of parked) {
+        const msgId = this.sidToMsg.get(ev.sid || "");
+        const upTo = msgId === undefined ? undefined : covered.get(msgId);
+        if (upTo !== undefined && typeof ev.seq === "number" && ev.seq <= upTo) continue;
+        this.consume(ev);
+      }
     }
   }
 

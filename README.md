@@ -103,12 +103,23 @@ consequences worth acting on:
 - when a device is lost, revoke that token in Traccoon. Nothing else changes, and no other
   client has to be touched.
 
-## How the run of a message is followed
+## Which live events belong here
 
-`GET /assistant/chat` returns `run_id` per message, so the live events of the office socket
-are attributed to the message they belong to. When a payload arrives without that field
-— an older backend — the plugin falls back to binding a fresh run to the newest running
-message, which is right as long as only one message runs at a time.
+The office socket is one stream per account: it carries the mail intake, the scheduled jobs
+and whatever the browser or the messenger is doing, not only this conversation. The filter is
+`ev.sid`, the room of a run (`run:<root run>`), matched against the `run_id` of the messages
+in the open conversation.
+
+- Sub-agents share their parent's `sid`, so filtering on `run_id` would drop half of a trail.
+- A continuation after a budget stop is a **new** run on the same message, so the set of rooms
+  is rebuilt on every fetch instead of once on opening.
+- An event whose room is unknown is parked, not drawn — a message sent seconds ago has no
+  `run_id` yet. It is shown once the next fetch proves the room is ours, and otherwise ages
+  out unseen.
+- After a reconnect: buffer, fetch `GET /api/office/sessions/run/<id>/events`, drop what the
+  snapshot already covered (`seq <= seq_to`), then go live. `after_seq` is for that gap only —
+  as a poller it would skip rows, because `seq` is handed out before the commit and two
+  concurrent runs can become visible out of order.
 
 ## Notes on the API this speaks
 

@@ -1,5 +1,5 @@
 import { requestUrl, RequestUrlResponse } from "obsidian";
-import type { ChatMsg, ChatPage, Issue, Project, Session } from "./types";
+import type { ChatMsg, ChatPage, Issue, OfficeEvent, Project, Session } from "./types";
 import type { TraccoonSettings } from "./settings";
 
 export class TraccoonError extends Error {
@@ -155,6 +155,26 @@ export class TraccoonApi {
     data: { summary: string; description?: string; priority?: string },
   ): Promise<Issue> {
     return this.request(`/projects/${projectId}/issues`, "POST", data);
+  }
+
+  /**
+   * The snapshot of one room, used to close the gap after a reconnect.
+   *
+   * Lives under `/office/*`, which a token only reaches with a wide enough scope — hence the
+   * null on 403/404 instead of an error: without the snapshot the chat simply misses the tool
+   * log of those seconds, and the result still arrives over REST.
+   */
+  async runEvents(
+    runId: number,
+    afterSeq?: number,
+  ): Promise<{ events: OfficeEvent[]; seq_to: number } | null> {
+    const q = afterSeq ? `?after_seq=${afterSeq}` : "";
+    try {
+      return await this.request(`/office/sessions/run/${runId}/events${q}`);
+    } catch (e) {
+      if (e instanceof TraccoonError && (e.status === 403 || e.status === 404)) return null;
+      throw e;
+    }
   }
 
   wsUrl(): string {
